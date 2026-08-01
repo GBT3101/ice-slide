@@ -2378,9 +2378,11 @@
     // Distant mountains - the ridge tiles so it fills any W, and so the
     // parallax offset can't slide a bare patch of sky in from the right.
     ctx.fillStyle = theme.mountain;
-    const drift = (-distance * 0.05) % 200; // -200..0
-    for (let tile = 0; tile * MOUNTAIN_PERIOD - 240 <= W + 40; tile++) {
-      const off = tile * MOUNTAIN_PERIOD + drift;
+    // Wrap on the ridge's own period, or the drift snaps mid-ridge and the
+    // whole range jumps. distance is never negative, so this lands in
+    // (-MOUNTAIN_PERIOD, 0] and the wrap is invisible.
+    const drift = (-distance * 0.05) % MOUNTAIN_PERIOD;
+    for (let off = drift; off <= W + 40; off += MOUNTAIN_PERIOD) {
       for (const m of MOUNTAIN_RIDGE) {
         const x = m.x + off;
         if (x > W + 40 || x + m.w < -40) continue;
