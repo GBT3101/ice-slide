@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36">
+  <!-- The player avatar, drawn to match drawPlayer() in game.js -->
+  <defs>
+    <linearGradient id="body" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="36" y2="36">
+      <stop offset="0" stop-color="#7aefc0" />
+      <stop offset="0.5" stop-color="#3dd68c" />
+      <stop offset="1" stop-color="#1faa68" />
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="36" height="36" rx="6" fill="url(#body)" />
+
+  <!-- Shine -->
+  <rect x="4" y="4" width="16.2" height="8" rx="3" fill="#ffffff" fill-opacity="0.35" />
+
+  <!-- Eyes (nudged 2px left of the in-game position so they clear the edge) -->
+  <g fill="#0a1a12">
+    <circle cx="20" cy="14" r="3.5" />
+    <circle cx="30" cy="14" r="3.5" />
+  </g>
+  <g fill="#ffffff">
+    <circle cx="21" cy="13" r="1.2" />
+    <circle cx="31" cy="13" r="1.2" />
+  </g>
+</svg>
