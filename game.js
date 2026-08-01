@@ -40,7 +40,7 @@
   const GROUND_Y = H - 72;
 
   let W = BASE_W;
-  /** Backing-store scale — re-applied every frame in draw(). */
+  /** Backing-store scale - re-applied every frame in draw(). */
   let renderScale = 1;
 
   // ── Tunables (feel first) ─────────────────────────────────────
@@ -60,7 +60,7 @@
   const BASE_SPEED = 280;
   /**
    * Ceiling on the scroll ramp. The opening acceleration is the game's feel,
-   * so the ramp stays — it just tops out early: 280 → 400 over the first 20s,
+   * so the ramp stays - it just tops out early: 280 → 400 over the first 20s,
    * i.e. by ~680 pts, and never moves again. (At the old 520 it kept climbing
    * until ~1600 pts and left only 1.1s of warning on an approaching enemy;
    * 400 gives 1.33s.) Raise this and the run gets harder everywhere at once.
@@ -72,7 +72,7 @@
   const MAX_GAP = 130;
   const MIN_PLATFORM = 180;
   const MAX_PLATFORM = 380;
-  /** Derived from W — recomputed by layout(), never read before it runs. */
+  /** Derived from W - recomputed by layout(), never read before it runs. */
   let SPAWN_AHEAD = W + 200;
 
   // Milestone tuning
@@ -88,7 +88,7 @@
   //   2. Register a full entry in ENEMY_TYPES (unlockScore, spawnWeight,
   //      canShoot, dropPowerup, lethalOnContact, draw style keys…), plus the
   //      manual fields: name + desc (shown in the Instructions screen, which
-  //      is generated straight from this table — no second list to update).
+  //      is generated straight from this table - no second list to update).
   //   3. If it needs unique art, extend drawEnemyInstance() with a branch
   //      on e.type (see "dropper" / "gunner" for patterns).
   //   4. Optional behavior hooks: onStomp via dropPowerup / custom flags;
@@ -96,13 +96,13 @@
   //   5. Spawning is automatic once unlockScore is met (weighted pick).
   //
   // Current roster:
-  //   raider  — regular red angry square. Unlocks at 100 pts.
-  //   dropper — yellow "?" powerup carrier. Unlocks at 300 pts. Stomp = powerup.
-  //   gunner  — armed red raider with blaster. Unlocks at 1000 pts.
-  //   flyer   — purple winged raider, ignores gravity. Unlocks at 2000 pts.
-  //   spiker  — blue raider, spikes out 1s / in 1s. Unlocks at 3000 pts.
-  //   brute   — black 2×2 hulk with glowing eyes. Unlocks at 4000 pts.
-  //   frost   — white raider, spikes never retract. Unlocks at 5000 pts.
+  //   raider  - regular red angry square. Unlocks at 100 pts.
+  //   dropper - yellow "?" powerup carrier. Unlocks at 300 pts. Stomp = powerup.
+  //   gunner  - armed red raider with blaster. Unlocks at 1000 pts.
+  //   flyer   - purple winged raider, ignores gravity. Unlocks at 2000 pts.
+  //   spiker  - blue raider, spikes out 1s / in 1s. Unlocks at 3000 pts.
+  //   brute   - black 2×2 hulk with glowing eyes. Unlocks at 4000 pts.
+  //   frost   - white raider, spikes never retract. Unlocks at 5000 pts.
   // ══════════════════════════════════════════════════════════════
   const ENEMY_SIZE = 34;
   const ENEMY_SIZE_BIG = ENEMY_SIZE * 2; // brute: 2×2 normal raiders
@@ -145,7 +145,7 @@
       hitReason: "A red ice raider crashed into you! Stomp from above or jump over.",
       label: "ice raider",
       name: "Ice Raider",
-      desc: "Charges straight down the lane. <strong>Stomp it from above</strong> to squash it — any side bump is fatal. Hit <strong>{{JUMP}}</strong> as you land for a double-height boost jump.",
+      desc: "Charges straight down the lane. <strong>Stomp it from above</strong> to squash it - any side bump is fatal. Hit <strong>{{JUMP}}</strong> as you land for a double-height boost jump.",
     },
     [EnemyKind.DROPPER]: {
       id: EnemyKind.DROPPER,
@@ -155,10 +155,10 @@
       canShoot: false,
       dropPowerup: "random", // stomp grants a random id from POWERUP_DROP_IDS
       fxColor: "rgba(255, 210, 60,",
-      hitReason: "You ran into a powerup dropper! Stomp the yellow ? boxes from above.",
+      hitReason: "You ran into a powerup dropper! Stomp from above next time for a powerup",
       label: "powerup dropper",
       name: "Powerup Dropper",
-      desc: "A yellow <strong>?</strong> box. Stomp it and it hands over a <strong>random powerup</strong> — but run into its side and it kills you like any raider.",
+      desc: "A yellow <strong>?</strong> box. Stomp it and get a <strong>random powerup</strong>"
     },
     [EnemyKind.GUNNER]: {
       id: EnemyKind.GUNNER,
@@ -168,10 +168,10 @@
       canShoot: true,
       dropPowerup: null,
       fxColor: "rgba(255, 80, 70,",
-      hitReason: "An armed ice raider got you! Stomp them from above — don't run into them.",
+      hitReason: "An armed ice raider got you! Stomp them from above - don't run into them.",
       label: "armed raider",
       name: "Gunner",
-      desc: "An armed raider that <strong>fires glowing bolts</strong> down the ice. Jump the shots, then land on its head — or shoot back if you're carrying the gun.",
+      desc: "An armed raider that <strong>fires at will</strong>. Jump the shots, then land on its head - or shoot back if you're carrying a gun.",
     },
     [EnemyKind.FLYER]: {
       id: EnemyKind.FLYER,
@@ -182,10 +182,10 @@
       dropPowerup: null,
       flying: true,
       fxColor: "rgba(190, 120, 255,",
-      hitReason: "A winged raider clipped you! They cruise over the gaps — stomp them out of the air.",
+      hitReason: "A winged raider clipped you! They cruise over the gaps - stomp them out of the air.",
       label: "winged raider",
       name: "Winged Raider",
-      desc: "Purple and airborne. It <strong>glides over gaps</strong> instead of falling in, so it comes at you where there is no ice to stand on. Still squashes if you land on its head.",
+      desc: "Airborne. It <strong>glides over gaps</strong> instead of falling in. Still squashes if you land on its head.",
     },
     [EnemyKind.SPIKER]: {
       id: EnemyKind.SPIKER,
@@ -196,10 +196,10 @@
       dropPowerup: null,
       spikes: "toggle",
       fxColor: "rgba(90, 180, 255,",
-      hitReason: "The blue spiker got you! Watch its head — stomp only while the spikes are tucked in.",
+      hitReason: "The blue spiker got you! Watch its head - stomp only while the spikes are tucked in.",
       label: "spiker",
       name: "Blue Spiker",
-      desc: "Head spikes that pop <strong>out for 1s, in for 1s</strong>. Land on it while they're <strong>out</strong> and you're done — time your stomp for the second they retract.",
+      desc: "Head spikes that pop <strong>out for 1s, in for 1s</strong>. Land on it while they're <strong>out</strong> and you're done - time your stomp for the second they retract.",
     },
     [EnemyKind.BRUTE]: {
       id: EnemyKind.BRUTE,
@@ -210,10 +210,10 @@
       dropPowerup: null,
       size: ENEMY_SIZE_BIG,
       fxColor: "rgba(120, 120, 140,",
-      hitReason: "The black brute flattened you! It's twice the size — go over the top, never around.",
+      hitReason: "The black brute flattened you! It's twice the size - go over the top, never around.",
       label: "brute",
       name: "Black Brute",
-      desc: "A slab of black ice <strong>twice as wide and twice as tall</strong> as a raider, with glowing red eyes. Too big to jump clean — land on its head instead.",
+      desc: "A slab of black ice <strong>twice as wide and twice as tall</strong> as a raider. Too big to jump clean, so land on its head instead.",
     },
     [EnemyKind.FROST]: {
       id: EnemyKind.FROST,
@@ -224,10 +224,10 @@
       dropPowerup: null,
       spikes: "always",
       fxColor: "rgba(225, 240, 255,",
-      hitReason: "The white spiker got you! Its spikes never retract — you cannot stomp that one.",
+      hitReason: "The white spiker got you! Its spikes never retract - you cannot stomp that one.",
       label: "white spiker",
       name: "White Spiker",
-      desc: "Bone-white, with spikes that <strong>never retract</strong>. There is <strong>no stomping this one</strong> — jump it clean or shoot it with the gun.",
+      desc: "Bone-white, with spikes that <strong>never retract</strong>. There is <strong>no stomping this one</strong> - jump it clean or shoot it with the gun.",
     },
   };
 
@@ -246,13 +246,13 @@
       icon: "spike",
       name: "Ice Spikes",
       tag: "always",
-      desc: "Frozen shards planted in the slab. There is <strong>no stomping these</strong> — jump them clean.",
+      desc: "Frozen shards planted in the slab. Jump them clean or get impaled.",
     },
     {
       icon: "crate",
       name: "Ice Crate",
       tag: "always",
-      desc: "A solid block parked on the track. <strong>Stomp it from above</strong> to shatter it — clip it from the side and the run is over.",
+      desc: "A solid block parked on the track. <strong>Stomp it from above</strong> to shatter it, hit it from the side and the run is over.",
     },
   ];
 
@@ -283,14 +283,14 @@
   // HOW TO ADD A NEW POWERUP (for future agents):
   //   1. Add an id string (e.g. "magnet") and register it in POWERUP_DEFS.
   //   2. Fields:
-  //        duration   — seconds active (0 = until consumed / permanent flag)
-  //        warnAt     — start blinking when remaining ≤ this many seconds
-  //        absorbHit  — if true, one lethal contact is blocked and the
+  //        duration   - seconds active (0 = until consumed / permanent flag)
+  //        warnAt     - start blinking when remaining ≤ this many seconds
+  //        absorbHit  - if true, one lethal contact is blocked and the
   //                     powerup is removed (see tryAbsorbHit)
-  //        exclusive  — if true, granting replaces any other exclusive buffs
-  //        onGrant / onExpire / onUpdate — optional lifecycle hooks
-  //        draw(ctx, player, state) — optional overlay while active
-  //        name / desc — copy for the Instructions screen, which is built
+  //        exclusive  - if true, granting replaces any other exclusive buffs
+  //        onGrant / onExpire / onUpdate - optional lifecycle hooks
+  //        draw(ctx, player, state) - optional overlay while active
+  //        name / desc - copy for the Instructions screen, which is built
   //                     straight from this table (its icon is the player
   //                     sprite wearing the powerup, so no extra art needed)
   //   3. Add the id to POWERUP_DROP_IDS so droppers can grant it (equal weight).
@@ -298,10 +298,10 @@
   //   5. Lethal contacts should call playerTakeHit(reason) so absorbHit works.
   //
   // Current powerups:
-  //   shield — bubble, 10s, pops on first hit, blinks in last 2s.
-  //   wings  — held until used; SPACE in air = one extra jump, then wings pop.
-  //   gun    — 10s, auto-shoots on-screen enemies ahead, blinks in last 2s.
-  //   bridge — held until used; next gap fall deploys a bridge under the player.
+  //   shield - bubble, 10s, pops on first hit, blinks in last 2s.
+  //   wings  - held until used; SPACE in air = one extra jump, then wings pop.
+  //   gun    - 10s, auto-shoots on-screen enemies ahead, blinks in last 2s.
+  //   bridge - held until used; next gap fall deploys a bridge under the player.
   // ══════════════════════════════════════════════════════════════
   const POWERUP_DEFS = {
     shield: {
@@ -312,7 +312,7 @@
       exclusive: false,
       label: "Shield",
       name: "Shield",
-      desc: "A bubble for <strong>10s</strong> that eats <strong>one lethal hit</strong>, then pops. It blinks for the last 2 seconds — that's your cue.",
+      desc: "A bubble for <strong>10s</strong> that eats <strong>one lethal hit</strong>, then pops. It blinks for the last 2 seconds - that's your cue.",
     },
     wings: {
       id: "wings",
@@ -322,7 +322,7 @@
       exclusive: false,
       label: "Wings",
       name: "Wings",
-      desc: "Kept until you spend them. Use <strong>{{JUMP}} in mid-air</strong> for one extra jump — then the wings burst into feathers.",
+      desc: "Kept until you spend them. Use <strong>{{JUMP}} in mid-air</strong> for one extra jump - then the wings burst into feathers.",
     },
     gun: {
       id: "gun",
@@ -425,7 +425,7 @@
   let lastTime = 0;
   let score = 0;
   let best = Number(localStorage.getItem("iceSlideBest") || 0);
-  /** Set by the 1–5 warp shortcut — such a run never writes the saved best. */
+  /** Set by the 1–5 warp shortcut - such a run never writes the saved best. */
   let warped = false;
   let runTime = 0;
   let speed = BASE_SPEED;
@@ -435,7 +435,7 @@
   let snowflakes = [];
   let fireworks = [];
 
-  /** Milestone signs every 100 pts — on ice, or floating in a bubble over a gap */
+  /** Milestone signs every 100 pts - on ice, or floating in a bubble over a gap */
   /** @type {{x:number,value:number,floating:boolean,bob:number}[]} */
   let signs = [];
   let nextSignValue = SIGN_INTERVAL;
@@ -491,7 +491,7 @@
   // ══════════════════════════════════════════════════════════════
   // RESPONSIVE / VIEWPORT
   // ──────────────────────────────────────────────────────────────
-  // One source of truth for "what kind of device is this" — JS owns the
+  // One source of truth for "what kind of device is this" - JS owns the
   // media queries and stamps three classes on <body>; style.css only ever
   // reads those classes, so the two can never drift apart:
   //
@@ -534,7 +534,7 @@
     const bw = Math.round(W * renderScale);
     const bh = Math.round(H * renderScale);
     // Assigning either dimension wipes the whole 2D state, so only do it
-    // when something actually changed — and re-apply the transform in draw().
+    // when something actually changed - and re-apply the transform in draw().
     if (canvas.width !== bw || canvas.height !== bh) {
       canvas.width = bw;
       canvas.height = bh;
@@ -553,7 +553,7 @@
     portraitLocked = nowLocked;
 
     layout();
-    // The world was generated for the old width — top it up for the new one.
+    // The world was generated for the old width - top it up for the new one.
     if (state !== State.MENU) ensureWorld();
     syncResumeGate();
   }
@@ -612,7 +612,7 @@
   let jumpHeld = false;
   let jumpReleased = false;
 
-  /** A focused UI button owns SPACE / ENTER — don't also fire the game action. */
+  /** A focused UI button owns SPACE / ENTER - don't also fire the game action. */
   function keyOwnedByUi(e) {
     return e.type === "keydown" && e.target && typeof e.target.closest === "function"
       ? Boolean(e.target.closest("button"))
@@ -637,7 +637,7 @@
       e.preventDefault();
     }
     if (portraitLocked) return;
-    // A paused run consumes the input that wakes it — no accidental jump.
+    // A paused run consumes the input that wakes it - no accidental jump.
     if (awaitingResume) {
       resumeRun();
       return;
@@ -659,7 +659,7 @@
     jumpHeld = false;
   }
 
-  /** Hidden test shortcut — keyboard only, deliberately absent from the manual. */
+  /** Hidden test shortcut - keyboard only, deliberately absent from the manual. */
   const WARP_KEYS = {
     Digit1: 1000,
     Digit2: 2000,
@@ -676,7 +676,7 @@
       }
       return;
     }
-    if (menuView === "instructions") return; // manual is modal — keys pass through to it
+    if (menuView === "instructions") return; // manual is modal - keys pass through to it
     if (portraitLocked) return;
     if (e.code === "KeyR" && !keyOwnedByUi(e)) {
       e.preventDefault();
@@ -836,7 +836,7 @@
         return { x: targetX, floating: false };
       }
     }
-    // Gap (or edge) — bubble float at the milestone world X
+    // Gap (or edge) - bubble float at the milestone world X
     return { x: targetX, floating: true };
   }
 
@@ -874,7 +874,7 @@
     if (t < SPIKE_RAMP) return t / SPIKE_RAMP; // popping out
     if (t < 1) return 1; // fully out
     if (t < 1 + SPIKE_RAMP) return 1 - (t - 1) / SPIKE_RAMP; // retracting
-    return 0; // tucked in — safe to stomp
+    return 0; // tucked in - safe to stomp
   }
 
   /** True while the spikes block a stomp (half-extended counts as out). */
@@ -1091,7 +1091,7 @@
       if (def.spikes === "toggle") e.spikeT += dt;
 
       if (def.flying) {
-        // No gravity and no platform test — flyers cruise straight over gaps.
+        // No gravity and no platform test - flyers cruise straight over gaps.
         e.y = e.baseY + Math.sin(e.bob * 0.5) * FLY_BOB;
       } else {
         // Simple gravity so they fall into gaps
@@ -1423,7 +1423,7 @@
     }
   }
 
-  /** Friendly (player gun) bullets destroy enemies on contact — no stomp rewards. */
+  /** Friendly (player gun) bullets destroy enemies on contact - no stomp rewards. */
   function resolveFriendlyBullets() {
     for (let bi = bullets.length - 1; bi >= 0; bi--) {
       const b = bullets[bi];
@@ -1839,8 +1839,8 @@
   }
 
   // ── Game flow ─────────────────────────────────────────────────
-  /** Put the square back on its feet — used by both the run and the idle menu. */
-  /** Score and best each render twice — page HUD and in-canvas HUD. */
+  /** Put the square back on its feet - used by both the run and the idle menu. */
+  /** Score and best each render twice - page HUD and in-canvas HUD. */
   function setScoreText(v) {
     const s = String(Math.floor(v));
     scoreEl.textContent = s;
@@ -1886,7 +1886,7 @@
   /**
    * Inverse of the speed ramp: the run time that would have covered `d`.
    * distance = BASE_SPEED·t + SPEED_RAMP·t²/2 until the speed caps, then it
-   * goes linear. Keeps a warped run scrolling as fast as an honest one — the
+   * goes linear. Keeps a warped run scrolling as fast as an honest one - the
    * later enemies are only balanced at the speed they actually appear at.
    */
   function runTimeForDistance(d) {
@@ -1906,8 +1906,8 @@
    * the late enemy tiers can be tested without the climb.
    *
    * The world is rebuilt rather than extended: ensureWorld() only ever grows
-   * forward, so bumping `distance` alone would generate — and then keep
-   * iterating — hundreds of dead platforms behind the player.
+   * forward, so bumping `distance` alone would generate - and then keep
+   * iterating - hundreds of dead platforms behind the player.
    */
   function warpToScore(target) {
     if (state !== State.PLAYING) startGame();
@@ -1979,7 +1979,7 @@
     syncResumeGate();
     setRunning(false);
 
-    // A warped run is a test run — it never overwrites the saved best.
+    // A warped run is a test run - it never overwrites the saved best.
     if (!warped && score > best) {
       best = score;
       localStorage.setItem("iceSlideBest", String(Math.floor(best)));
@@ -1989,7 +1989,7 @@
     overlayTitle.textContent = "You fell!";
     overlayMsg.innerHTML =
       `${reason}<br><br>Score: <strong style="color:#5ec8ff">${Math.floor(score)}</strong>` +
-      (!warped && score >= best && score > 0 ? " — new best!" : "");
+      (!warped && score >= best && score > 0 ? " - new best!" : "");
     gameWrap.classList.add("game-wrap--menu");
     overlay.classList.remove("hidden");
   }
@@ -2106,7 +2106,7 @@
           // Spikes out = the head is a hazard, not a platform
           if (enemySpikesOut(e)) {
             if (playerTakeHit(getEnemyDef(e).hitReason)) return;
-            // Absorbed — clear the enemy so the spikes can't chain-kill
+            // Absorbed - clear the enemy so the spikes can't chain-kill
             enemies.splice(i, 1);
             applyStompBounce(e.y);
             stompedThisFrame = true;
@@ -2121,7 +2121,7 @@
       }
     }
 
-    // Crates squash like enemies — same window, same bounce. Spikes never do.
+    // Crates squash like enemies - same window, same bounce. Spikes never do.
     if (player.vy >= 0 && !stompedThisFrame) {
       for (let i = obstacles.length - 1; i >= 0; i--) {
         const o = obstacles[i];
@@ -2205,7 +2205,7 @@
       }
     }
 
-    // Side / body hit only — stomping from above already handled
+    // Side / body hit only - stomping from above already handled
     for (let ei = enemies.length - 1; ei >= 0; ei--) {
       const e = enemies[ei];
       const ex = e.x - distance;
@@ -2213,7 +2213,7 @@
 
       const def = getEnemyDef(e);
 
-      // Safety: if we're still clearly on top while falling, treat as stomp —
+      // Safety: if we're still clearly on top while falling, treat as stomp -
       // unless the spikes are out, in which case the head is never safe.
       const feet = player.y + ph;
       const mostlyAbove =
@@ -2229,7 +2229,7 @@
 
       if (def.lethalOnContact) {
         if (playerTakeHit(def.hitReason)) return;
-        // Shield absorbed — knock enemy away so contact doesn't chain-kill
+        // Shield absorbed - knock enemy away so contact doesn't chain-kill
         enemies.splice(ei, 1);
       }
     }
@@ -2375,7 +2375,7 @@
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    // Distant mountains — the ridge tiles so it fills any W, and so the
+    // Distant mountains - the ridge tiles so it fills any W, and so the
     // parallax offset can't slide a bare patch of sky in from the right.
     ctx.fillStyle = theme.mountain;
     const drift = (-distance * 0.05) % 200; // -200..0
@@ -2530,7 +2530,7 @@
       }
     }
 
-    // Abyss under gaps — subtle void
+    // Abyss under gaps - subtle void
     ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
     ctx.fillRect(0, GROUND_Y + 4, W, H - GROUND_Y);
   }
@@ -2814,7 +2814,7 @@
 
   /**
    * Head spikes, drawn *above* the body rect so they never change the
-   * hitbox — enemySpikesOut() alone decides whether a stomp lands.
+   * hitbox - enemySpikesOut() alone decides whether a stomp lands.
    * extend is the same 0..1 the stomp rule reads.
    */
   function drawHeadSpikes(e, extend, fill, shadow) {
@@ -2846,7 +2846,7 @@
     ctx.stroke();
   }
 
-  /** Purple winged raider — flies over gaps, still stompable. */
+  /** Purple winged raider - flies over gaps, still stompable. */
   function drawEnemyFlyer(e) {
     const flap = Math.sin(e.bob * 2.2);
     const span = e.w * 0.72;
@@ -2876,7 +2876,7 @@
     drawRaiderShell(e, ["#d9a6ff", "#9b46e0", "#571a8e"], "#1e0733", "#ffd6f5");
   }
 
-  /** Blue spiker — head spikes cycle out (1s) and in (1s). */
+  /** Blue spiker - head spikes cycle out (1s) and in (1s). */
   function drawEnemySpiker(e) {
     const extend = enemySpikeExtend(e);
     drawRaiderShell(e, ["#8fd8ff", "#2f86e0", "#123f7a"], "#04172e", "#c8f0ff");
@@ -2891,13 +2891,13 @@
     }
   }
 
-  /** White spiker — same spikes, permanently out. Never stompable. */
+  /** White spiker - same spikes, permanently out. Never stompable. */
   function drawEnemyFrost(e) {
     drawRaiderShell(e, ["#ffffff", "#dfe9f5", "#9aa9bd"], "#2b3a4d", "#7fd8ff");
     drawHeadSpikes(e, 1, "#ffffff", "rgba(90, 110, 140, 0.9)");
   }
 
-  /** Black brute — 2×2 raider with shining red eyes. */
+  /** Black brute - 2×2 raider with shining red eyes. */
   function drawEnemyBrute(e) {
     const s = e.w / ENEMY_SIZE_BIG; // art is authored at full 68px
     const pulse = 0.75 + Math.sin(e.bob * 1.6) * 0.25;
@@ -3034,7 +3034,7 @@
     }
   }
 
-  /** Yellow powerup dropper with a "?" mark — stomp to grant a powerup. */
+  /** Yellow powerup dropper with a "?" mark - stomp to grant a powerup. */
   function drawEnemyDropper(e) {
     const body = ctx.createLinearGradient(-e.w / 2, -e.h / 2, e.w / 2, e.h / 2);
     body.addColorStop(0, "#ffe66a");
@@ -3227,15 +3227,15 @@
   }
 
   // ══════════════════════════════════════════════════════════════
-  // FRONT END — entrance screen & field manual
+  // FRONT END - entrance screen & field manual
   // ──────────────────────────────────────────────────────────────
   // The entrance screen is a DOM layer over the canvas, so the live idle
   // world (sky, aurora, mountains, snow, bobbing square) keeps running as
   // its backdrop. The manual is a modal, and every row's icon is painted
-  // by the *game's own* draw functions onto a tiny canvas — so the art in
+  // by the *game's own* draw functions onto a tiny canvas - so the art in
   // the instructions can never drift from the art in the run.
   // ══════════════════════════════════════════════════════════════
-  const ICON_SIZE = 62; // CSS px — matches .entry-icon in style.css
+  const ICON_SIZE = 62; // CSS px - matches .entry-icon in style.css
 
   /** @type {{ctx:CanvasRenderingContext2D, kind:string}[]} */
   const manualIcons = [];
@@ -3362,7 +3362,7 @@
   function drawEnemyIcon(kind, S) {
     const t = performance.now();
     const bob = Math.sin(t / 420) * 2;
-    // Every type is drawn at ENEMY_SIZE here — the 68px brute wouldn't fit the
+    // Every type is drawn at ENEMY_SIZE here - the 68px brute wouldn't fit the
     // 62px tile, so its scale is described in the copy instead of the art.
     const e = {
       w: ENEMY_SIZE,
@@ -3372,7 +3372,7 @@
       // Icons animate their spike cycle just like the live enemy
       spikeT: (t / 1000) % SPIKE_CYCLE,
     };
-    // Gunners carry a blaster off their left side — nudge right to keep it in frame
+    // Gunners carry a blaster off their left side - nudge right to keep it in frame
     const cx = S / 2 + (kind === EnemyKind.GUNNER ? 6 : 0);
     // Wings reach past the body (pull in); the brute reads as a slab (push out)
     const scale =
@@ -3428,7 +3428,7 @@
     ctx.fillRect(0, 0, S, S);
 
     drawPlayer();
-    // Timed powerups blink near expiry — Infinity keeps the icon solid.
+    // Timed powerups blink near expiry - Infinity keeps the icon solid.
     const fake = { id, remaining: Infinity, def };
     if (id === "shield") drawShieldBubble(fake);
     else if (id === "wings") drawWingsOverlay(fake);
@@ -3556,7 +3556,7 @@
     menuView = "home";
     resetWorld();
     resetPlayer();
-    // The death jolt keeps rattling through the game-over screen on purpose —
+    // The death jolt keeps rattling through the game-over screen on purpose -
     // it only stops here, when the player steps back out to the menu.
     shake = 0;
     awaitingResume = false;
@@ -3572,7 +3572,7 @@
     blurUi();
   }
 
-  /** Tear down every front-end layer — called when a run begins. */
+  /** Tear down every front-end layer - called when a run begins. */
   function closeFrontEnd() {
     menuView = null;
     menuScreen.classList.add("hidden");
@@ -3615,7 +3615,7 @@
       if (e.target === manual) closeManual();
     });
 
-    // The game-over panel promises "tap anywhere" — but #overlay sits above
+    // The game-over panel promises "tap anywhere" - but #overlay sits above
     // the canvas, so the canvas never sees that tap. Honour it here.
     overlay.addEventListener("pointerdown", (e) => {
       if (state !== State.DEAD) return;
@@ -3627,7 +3627,7 @@
       startGame();
     });
 
-    // Mid-run restart — the touch stand-in for the R key.
+    // Mid-run restart - the touch stand-in for the R key.
     const restart = document.getElementById("btn-restart-m");
     if (restart) restart.addEventListener("click", startGame);
   }
@@ -3636,7 +3636,7 @@
   function frame(now) {
     const dt = Math.min(0.033, (now - lastTime) / 1000 || 0.016);
     lastTime = now;
-    // dt is already clamped, so a frozen sim needs no catch-up on resume —
+    // dt is already clamped, so a frozen sim needs no catch-up on resume -
     // simply don't advance it. Drawing continues so the world stays correct
     // behind the resume gate.
     if (!portraitLocked && !awaitingResume) update(dt);
