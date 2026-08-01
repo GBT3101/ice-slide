@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Ice Slide — Jump or Fall</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>Ice Slide</h1>
+    </header>
+
+    <div class="game-wrap" id="game-wrap">
+      <canvas id="game" width="900" height="400" aria-label="Ice Slide game canvas"></canvas>
+
+      <!-- ── In-canvas HUD (touch / fullscreen only) ───────────────── -->
+      <div id="hud-mobile" class="hud-mobile" aria-hidden="true">
+        <div class="hud-m-stats">
+          <span class="hud-m-label">Score</span>
+          <span id="score-m" class="hud-m-value">0</span>
+          <span class="hud-m-sep" aria-hidden="true"></span>
+          <span class="hud-m-label">Best</span>
+          <span id="best-m" class="hud-m-value">0</span>
+        </div>
+        <button id="btn-restart-m" class="hud-m-btn" type="button" aria-label="Restart run">
+          <span aria-hidden="true">⟲</span>
+        </button>
+      </div>
+
+      <!-- ── Entrance screen (sits over the live idle world) ───────── -->
+      <div id="menu-screen" class="menu-screen">
+        <div class="menu-veil" aria-hidden="true"></div>
+        <div class="menu-content">
+          <div class="menu-crest" aria-hidden="true">
+            <span class="crest-shard"></span>
+            <span class="crest-shard"></span>
+            <span class="crest-shard"></span>
+          </div>
+
+          <h2 class="logo">
+            <span class="logo-line logo-line--ice">ICE</span>
+            <span class="logo-line logo-line--slide">SLIDE</span>
+          </h2>
+
+          <p class="logo-sub">Slide · Jump · Survive</p>
+
+          <div class="menu-actions">
+            <button id="btn-run" class="btn btn-run" type="button">
+              <span class="btn-label">RUN!</span>
+              <span class="btn-sheen" aria-hidden="true"></span>
+            </button>
+            <button id="btn-instructions" class="btn btn-ghost" type="button">
+              <span class="btn-icon" aria-hidden="true">?</span>
+              <span class="btn-label">Instructions</span>
+            </button>
+          </div>
+
+          <p class="menu-hint">
+            <span class="k-pointer"><kbd>SPACE</kbd> to run · <kbd>R</kbd> restarts anytime</span>
+            <span class="k-touch">Tap <kbd>RUN!</kbd> to drop in · then tap to jump</span>
+          </p>
+
+          <div class="menu-best">
+            <span class="menu-best-label">Best</span>
+            <span id="menu-best">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Game-over overlay ────────────────────────────────────── -->
+      <div id="overlay" class="overlay hidden">
+        <div class="panel">
+          <h2 id="overlay-title">You fell!</h2>
+          <p id="overlay-msg"></p>
+          <div class="panel-actions">
+            <button id="btn-retry" class="btn btn-run btn-run--sm" type="button">
+              <span class="btn-label">RUN AGAIN</span>
+              <span class="btn-sheen" aria-hidden="true"></span>
+            </button>
+            <button id="btn-menu" class="btn btn-ghost btn-ghost--sm" type="button">
+              <span class="btn-label">Menu</span>
+            </button>
+          </div>
+          <p class="hint">
+            <span class="k-pointer">Press <kbd>SPACE</kbd> to try again</span>
+            <span class="k-touch">Tap anywhere to try again</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Resume gate (shown after rotating back to landscape) ──── -->
+      <div id="resume-gate" class="resume-gate hidden" role="button" tabindex="-1"
+           aria-label="Tap to resume the run">
+        <div class="resume-card">
+          <span class="resume-title">Paused</span>
+          <span class="resume-sub">
+            <span class="k-pointer">Press SPACE to resume</span>
+            <span class="k-touch">Tap to resume</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hud">
+      <div class="stat">
+        <span class="label">Score</span>
+        <span id="score">0</span>
+      </div>
+      <div class="stat">
+        <span class="label">Best</span>
+        <span id="best">0</span>
+      </div>
+      <div class="stat controls">
+        <span class="k-pointer"><kbd>SPACE</kbd> Jump</span>
+        <span class="k-pointer"><kbd>R</kbd> Restart</span>
+        <span class="k-touch">Tap to jump · hold for height</span>
+      </div>
+    </div>
+
+    <footer class="footer">
+      Tip: stomp yellow ? boxes for a shield — it pops once, then you're exposed.
+    </footer>
+  </div>
+
+  <!-- ── Instructions (field manual) ─────────────────────────────── -->
+  <div id="instructions" class="modal hidden" role="dialog" aria-modal="true"
+       aria-labelledby="manual-title" aria-hidden="true">
+    <div class="modal-card" role="document">
+      <header class="modal-head">
+        <div>
+          <h2 id="manual-title">Field Manual</h2>
+          <p class="modal-sub">What's coming for you — and what saves you.</p>
+        </div>
+        <button id="btn-close-manual" class="icon-btn" type="button" aria-label="Close instructions">
+          <span aria-hidden="true">✕</span>
+        </button>
+      </header>
+
+      <div class="manual">
+        <section class="manual-col">
+          <h3 class="col-title col-title--danger">
+            <span class="col-dot"></span>Enemies &amp; Hazards
+          </h3>
+          <ul class="entry-list" id="list-enemies"></ul>
+        </section>
+
+        <section class="manual-col">
+          <h3 class="col-title col-title--power">
+            <span class="col-dot"></span>Powerups
+          </h3>
+          <ul class="entry-list" id="list-powerups"></ul>
+          <p class="col-note">
+            Stomp a yellow <strong>?</strong> dropper to unwrap one — every powerup
+            has an equal chance.
+          </p>
+        </section>
+      </div>
+
+      <footer class="modal-foot">
+        <div class="keyline">
+          <span class="k-pointer">In a run: <kbd>SPACE</kbd> jump / stomp-boost · <kbd>R</kbd> restart</span>
+          <span class="k-pointer"><kbd>ESC</kbd> closes this</span>
+          <span class="k-touch">In a run: tap to jump / stomp-boost · hold for height</span>
+          <span class="k-touch">The <kbd>⟲</kbd> button, top-right, restarts</span>
+        </div>
+        <button id="btn-run-manual" class="btn btn-run btn-run--sm" type="button">
+          <span class="btn-label">RUN!</span>
+          <span class="btn-sheen" aria-hidden="true"></span>
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ── Portrait gate — the whole game is a landscape experience ── -->
+  <div id="rotate-gate" class="rotate-gate" aria-hidden="true">
+    <div class="rotate-inner">
+      <div class="rotate-phone" aria-hidden="true">
+        <span class="rotate-phone-screen"></span>
+        <span class="rotate-phone-notch"></span>
+      </div>
+      <h2 class="rotate-title">Turn your device</h2>
+      <p class="rotate-sub">Ice Slide is a wide-screen run — rotate to landscape to play.</p>
+      <p class="rotate-note">Tip: unlock rotation lock if the screen doesn't turn.</p>
+    </div>
+  </div>
+
+  <script src="game.js?v=8"></script>
+</body>
+</html>
