@@ -1,12 +1,19 @@
 # Ice Slide
 
-A tiny 2D ice-scroller you can run locally in any browser.
+**▶ Play it live: <https://gbt3101.github.io/ice-slide/>**
+
+The game is deployed on GitHub Pages, served straight from the `main` branch at
+the repo root — there is no build step and no deploy workflow. **Every push to
+`main` publishes the site**, so any change committed here goes live within a
+minute or two. Check the live URL after pushing.
+
+A tiny 2D ice-scroller that also runs locally in any browser.
 
 You are a green square sliding endlessly on ice. Gaps and hazards scroll in from the right — jump with **Space** (or click / tap) or you fall and lose.
 
-## How to run
+## Run locally
 
-No build step or server required. Either:
+No build step or server required (same as on Pages). Either:
 
 1. **Double-click** `index.html` to open it in your browser, or
 2. From this folder, serve it (optional, useful if your browser blocks local modules):
@@ -75,7 +82,9 @@ art is crisp on retina screens on desktop too.
 
 - The square **auto-slides** to the right (world scrolls left).
 - **Gaps** in the ice — miss the jump and you fall.
-- **Spikes** and **ice crates** on platforms — hit them and you lose.
+- **Spikes** and **ice crates** on platforms — side contact kills you. **Ice
+  crates** can be **stomped** from above like an enemy: they shatter and you get
+  the same bounce. Spikes never can.
 - **Floating ice platforms** appear sometimes for extra routes.
 - **Milestone signs** every **100** points — planted into the ice, or floating in a **bubble** if that mark falls over a gap.
 - After **100** points: **red raiders** approach — **stomp** from above to squash them; only side contact kills you. Time **Space** on a stomp for a boost jump (~**2×** normal height if held).

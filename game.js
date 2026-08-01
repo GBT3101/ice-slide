@@ -167,7 +167,7 @@
       icon: "crate",
       name: "Ice Crate",
       tag: "always",
-      desc: "A solid block parked on the track. Clip it at speed and the run is over.",
+      desc: "A solid block parked on the track. <strong>Stomp it from above</strong> to shatter it — clip it from the side and the run is over.",
     },
   ];
 
@@ -827,6 +827,33 @@
     }
 
     enemies.splice(index, 1);
+  }
+
+  /** Shatter a crate under the player's feet. Mirrors stompEnemy's FX. */
+  function smashCrate(index, screenX) {
+    const o = obstacles[index];
+    if (!o) return;
+    const cx = screenX + o.w / 2;
+    const cy = o.y + o.h * 0.55;
+
+    for (let i = 0; i < 14; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const sp = rand(60, 220);
+      particles.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp - 40,
+        life: rand(0.25, 0.55),
+        max: 0.55,
+        r: rand(2, 5),
+        color: Math.random() < 0.5 ? "rgba(184, 216, 240," : "rgba(74, 122, 152,",
+      });
+    }
+    spawnDust(cx, o.y + o.h);
+    shake = Math.max(shake, 5);
+
+    obstacles.splice(index, 1);
   }
 
   /** Equal chance among all registered droppable powerups. */
@@ -1815,6 +1842,7 @@
     const prevFeet = py + ph - player.vy * dt;
 
     // Stomp enemies from above first (squash + bounce) before platforms resolve
+    let stompedThisFrame = false;
     if (player.vy >= 0) {
       for (let i = enemies.length - 1; i >= 0; i--) {
         const e = enemies[i];
@@ -1832,7 +1860,33 @@
           const top = e.y;
           stompEnemy(i, ex);
           applyStompBounce(top);
+          stompedThisFrame = true;
           break; // one stomp per frame is enough
+        }
+      }
+    }
+
+    // Crates squash like enemies — same window, same bounce. Spikes never do.
+    if (player.vy >= 0 && !stompedThisFrame) {
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+        if (o.type !== "crate") continue;
+        const ox = o.x - distance;
+        if (ox + o.w < px - 4 || ox > px + pw + 4) continue;
+
+        const overlappingX = px + pw > ox + 6 && px < ox + o.w - 6;
+        const wasAbove = prevFeet <= o.y + 8;
+        const feet = py + ph;
+        const landingOnTop =
+          feet >= o.y &&
+          feet <= o.y + Math.max(16, Math.abs(player.vy) * dt + 12);
+
+        if (overlappingX && wasAbove && landingOnTop) {
+          const top = o.y;
+          smashCrate(i, ox);
+          applyStompBounce(top);
+          stompedThisFrame = true;
+          break;
         }
       }
     }
@@ -1871,9 +1925,25 @@
     }
 
     // Obstacle hits (shield can absorb)
-    for (const o of obstacles) {
+    for (let oi = obstacles.length - 1; oi >= 0; oi--) {
+      const o = obstacles[oi];
       const ox = o.x - distance;
       if (rectsOverlap(px, player.y, pw, ph, ox, o.y, o.w, o.h)) {
+        // Safety: clearly still on top of a crate while falling → treat as smash
+        const feet = player.y + ph;
+        const mostlyAbove =
+          o.type === "crate" &&
+          !stompedThisFrame &&
+          player.vy >= 0 &&
+          prevFeet <= o.y + 10 &&
+          feet <= o.y + o.h * 0.45;
+        if (mostlyAbove) {
+          const top = o.y;
+          smashCrate(oi, ox);
+          applyStompBounce(top);
+          stompedThisFrame = true;
+          continue;
+        }
         if (playerTakeHit("You hit an ice hazard. Watch the spikes and crates!")) return;
         // Absorbed: nudge past this obstacle so we don't re-hit same frame
         // (obstacle still solid; brief invuln via powerup removal is enough)
