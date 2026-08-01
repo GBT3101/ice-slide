@@ -58,7 +58,14 @@
   const JUMP_CUT = 0.45;
 
   const BASE_SPEED = 280;
-  const MAX_SPEED = 520;
+  /**
+   * Ceiling on the scroll ramp. The opening acceleration is the game's feel,
+   * so the ramp stays — it just tops out early: 280 → 400 over the first 20s,
+   * i.e. by ~680 pts, and never moves again. (At the old 520 it kept climbing
+   * until ~1600 pts and left only 1.1s of warning on an approaching enemy;
+   * 400 gives 1.33s.) Raise this and the run gets harder everywhere at once.
+   */
+  const MAX_SPEED = 400;
   const SPEED_RAMP = 6; // units/sec per second of run
 
   const MIN_GAP = 70;
@@ -92,11 +99,22 @@
   //   raider  — regular red angry square. Unlocks at 100 pts.
   //   dropper — yellow "?" powerup carrier. Unlocks at 300 pts. Stomp = powerup.
   //   gunner  — armed red raider with blaster. Unlocks at 1000 pts.
+  //   flyer   — purple winged raider, ignores gravity. Unlocks at 2000 pts.
+  //   spiker  — blue raider, spikes out 1s / in 1s. Unlocks at 3000 pts.
+  //   brute   — black 2×2 hulk with glowing eyes. Unlocks at 4000 pts.
+  //   frost   — white raider, spikes never retract. Unlocks at 5000 pts.
   // ══════════════════════════════════════════════════════════════
+  const ENEMY_SIZE = 34;
+  const ENEMY_SIZE_BIG = ENEMY_SIZE * 2; // brute: 2×2 normal raiders
+
   const EnemyKind = {
     RAIDER: "raider",
     DROPPER: "dropper",
     GUNNER: "gunner",
+    FLYER: "flyer",
+    SPIKER: "spiker",
+    BRUTE: "brute",
+    FROST: "frost",
   };
 
   /** @type {Record<string, {
@@ -106,6 +124,11 @@
    *   lethalOnContact: boolean,
    *   canShoot: boolean,
    *   dropPowerup: string|null,
+   *   size?: number,          // body px (defaults to ENEMY_SIZE)
+   *   flying?: boolean,       // no gravity, hovers over gaps
+   *   spikes?: "toggle"|"always"|null, // head spikes block stomps while out
+   *   fxColor: string,        // particle color prefix ("rgba(r, g, b,")
+   *   hitReason: string,      // death message on lethal side contact
    *   label: string,
    *   name: string,
    *   desc: string,
@@ -118,6 +141,8 @@
       lethalOnContact: true,
       canShoot: false,
       dropPowerup: null,
+      fxColor: "rgba(255, 80, 70,",
+      hitReason: "A red ice raider crashed into you! Stomp from above or jump over.",
       label: "ice raider",
       name: "Ice Raider",
       desc: "Charges straight down the lane. <strong>Stomp it from above</strong> to squash it — any side bump is fatal. Hit <strong>{{JUMP}}</strong> as you land for a double-height boost jump.",
@@ -129,6 +154,8 @@
       lethalOnContact: true,
       canShoot: false,
       dropPowerup: "random", // stomp grants a random id from POWERUP_DROP_IDS
+      fxColor: "rgba(255, 210, 60,",
+      hitReason: "You ran into a powerup dropper! Stomp the yellow ? boxes from above.",
       label: "powerup dropper",
       name: "Powerup Dropper",
       desc: "A yellow <strong>?</strong> box. Stomp it and it hands over a <strong>random powerup</strong> — but run into its side and it kills you like any raider.",
@@ -140,9 +167,67 @@
       lethalOnContact: true,
       canShoot: true,
       dropPowerup: null,
+      fxColor: "rgba(255, 80, 70,",
+      hitReason: "An armed ice raider got you! Stomp them from above — don't run into them.",
       label: "armed raider",
       name: "Gunner",
       desc: "An armed raider that <strong>fires glowing bolts</strong> down the ice. Jump the shots, then land on its head — or shoot back if you're carrying the gun.",
+    },
+    [EnemyKind.FLYER]: {
+      id: EnemyKind.FLYER,
+      unlockScore: 2000,
+      spawnWeight: 0.4,
+      lethalOnContact: true,
+      canShoot: false,
+      dropPowerup: null,
+      flying: true,
+      fxColor: "rgba(190, 120, 255,",
+      hitReason: "A winged raider clipped you! They cruise over the gaps — stomp them out of the air.",
+      label: "winged raider",
+      name: "Winged Raider",
+      desc: "Purple and airborne. It <strong>glides over gaps</strong> instead of falling in, so it comes at you where there is no ice to stand on. Still squashes if you land on its head.",
+    },
+    [EnemyKind.SPIKER]: {
+      id: EnemyKind.SPIKER,
+      unlockScore: 3000,
+      spawnWeight: 0.3,
+      lethalOnContact: true,
+      canShoot: false,
+      dropPowerup: null,
+      spikes: "toggle",
+      fxColor: "rgba(90, 180, 255,",
+      hitReason: "The blue spiker got you! Watch its head — stomp only while the spikes are tucked in.",
+      label: "spiker",
+      name: "Blue Spiker",
+      desc: "Head spikes that pop <strong>out for 1s, in for 1s</strong>. Land on it while they're <strong>out</strong> and you're done — time your stomp for the second they retract.",
+    },
+    [EnemyKind.BRUTE]: {
+      id: EnemyKind.BRUTE,
+      unlockScore: 4000,
+      spawnWeight: 0.28,
+      lethalOnContact: true,
+      canShoot: false,
+      dropPowerup: null,
+      size: ENEMY_SIZE_BIG,
+      fxColor: "rgba(120, 120, 140,",
+      hitReason: "The black brute flattened you! It's twice the size — go over the top, never around.",
+      label: "brute",
+      name: "Black Brute",
+      desc: "A slab of black ice <strong>twice as wide and twice as tall</strong> as a raider, with glowing red eyes. Too big to jump clean — land on its head instead.",
+    },
+    [EnemyKind.FROST]: {
+      id: EnemyKind.FROST,
+      unlockScore: 5000,
+      spawnWeight: 0.26,
+      lethalOnContact: true,
+      canShoot: false,
+      dropPowerup: null,
+      spikes: "always",
+      fxColor: "rgba(225, 240, 255,",
+      hitReason: "The white spiker got you! Its spikes never retract — you cannot stomp that one.",
+      label: "white spiker",
+      name: "White Spiker",
+      desc: "Bone-white, with spikes that <strong>never retract</strong>. There is <strong>no stomping this one</strong> — jump it clean or shoot it with the gun.",
     },
   };
 
@@ -171,10 +256,20 @@
     },
   ];
 
-  const ENEMY_SIZE = 34;
   const ENEMY_SPAWN_MIN = 1.4;
   const ENEMY_SPAWN_MAX = 2.8;
   const ENEMY_APPROACH = 90; // extra leftward speed (world units/sec)
+  /**
+   * Flyer cruise altitude, measured from the ice to the enemy's feet.
+   * Its head must stay inside the jump budget or it becomes an unstompable,
+   * unjumpable wall: ENEMY_SIZE + FLY_HOVER_MAX + FLY_BOB < JUMP_HEIGHT (118).
+   */
+  const FLY_HOVER_MIN = 38;
+  const FLY_HOVER_MAX = 60;
+  const FLY_BOB = 5; // vertical sine amplitude (moves the hitbox with the art)
+  /** Spiker: 1s out, 1s in, with a short ramp so the pop reads. */
+  const SPIKE_CYCLE = 2;
+  const SPIKE_RAMP = 0.15;
   const BULLET_SPEED = 320;
   const SHOOT_COOLDOWN = 1.35;
   const STOMP_BOUNCE = JUMP_VELOCITY * 0.42; // hop after squashing a raider
@@ -330,6 +425,8 @@
   let lastTime = 0;
   let score = 0;
   let best = Number(localStorage.getItem("iceSlideBest") || 0);
+  /** Set by the 1–5 warp shortcut — such a run never writes the saved best. */
+  let warped = false;
   let runTime = 0;
   let speed = BASE_SPEED;
   let distance = 0;
@@ -344,8 +441,10 @@
   let nextSignValue = SIGN_INTERVAL;
 
   /**
-   * Live enemy instances.
-   * @type {{type:string,x:number,y:number,w:number,h:number,vy:number,bob:number,shootCd:number}[]}
+   * Live enemy instances. baseY is the flyer's cruise line; spikeT drives the
+   * spiker's out/in cycle (see enemySpikeExtend).
+   * @type {{type:string,x:number,y:number,w:number,h:number,vy:number,bob:number,
+   *   shootCd:number,baseY:number,spikeT:number}[]}
    */
   let enemies = [];
   let enemySpawnTimer = 0;
@@ -560,6 +659,15 @@
     jumpHeld = false;
   }
 
+  /** Hidden test shortcut — keyboard only, deliberately absent from the manual. */
+  const WARP_KEYS = {
+    Digit1: 1000,
+    Digit2: 2000,
+    Digit3: 3000,
+    Digit4: 4000,
+    Digit5: 5000,
+  };
+
   function onKeyDown(e) {
     if (e.code === "Escape") {
       if (menuView === "instructions") {
@@ -573,6 +681,12 @@
     if (e.code === "KeyR" && !keyOwnedByUi(e)) {
       e.preventDefault();
       startGame();
+      return;
+    }
+    // Secret desktop shortcut: 1–5 warp the run to 1k–5k pts (see warpToScore)
+    if (WARP_KEYS[e.code] && !keyOwnedByUi(e)) {
+      e.preventDefault();
+      warpToScore(WARP_KEYS[e.code]);
       return;
     }
     onJumpDown(e);
@@ -728,9 +842,44 @@
 
   // ── Enemies (spawn / update / stomp) ──────────────────────────
 
+  /**
+   * Resolve a type id, a live enemy (.type) or a registry entry (.id) to its
+   * ENEMY_TYPES row. All three are accepted on purpose: the fallback below is
+   * silent, so handing this the wrong shape surfaces as a raider-shaped bug
+   * (wrong size, wrong art) rather than an error.
+   */
   function getEnemyDef(typeOrEnemy) {
-    const id = typeof typeOrEnemy === "string" ? typeOrEnemy : typeOrEnemy && typeOrEnemy.type;
-    return (id && ENEMY_TYPES[id]) || ENEMY_TYPES[EnemyKind.RAIDER];
+    if (!typeOrEnemy) return ENEMY_TYPES[EnemyKind.RAIDER];
+    const id =
+      typeof typeOrEnemy === "string"
+        ? typeOrEnemy
+        : typeOrEnemy.type || typeOrEnemy.id;
+    return ENEMY_TYPES[id] || ENEMY_TYPES[EnemyKind.RAIDER];
+  }
+
+  /** Body size in px for a type id or live enemy (brutes are 2×). */
+  function enemySizeOf(typeOrEnemy) {
+    return getEnemyDef(typeOrEnemy).size || ENEMY_SIZE;
+  }
+
+  /**
+   * How far the head spikes are out, 0..1. Drawing and the stomp rule both
+   * read this, so the sprite can never disagree with the hitbox rule.
+   */
+  function enemySpikeExtend(e) {
+    const def = getEnemyDef(e);
+    if (def.spikes === "always") return 1;
+    if (def.spikes !== "toggle") return 0;
+    const t = (e.spikeT || 0) % SPIKE_CYCLE;
+    if (t < SPIKE_RAMP) return t / SPIKE_RAMP; // popping out
+    if (t < 1) return 1; // fully out
+    if (t < 1 + SPIKE_RAMP) return 1 - (t - 1) / SPIKE_RAMP; // retracting
+    return 0; // tucked in — safe to stomp
+  }
+
+  /** True while the spikes block a stomp (half-extended counts as out). */
+  function enemySpikesOut(e) {
+    return enemySpikeExtend(e) >= 0.5;
   }
 
   /** Earliest score at which any enemy type unlocks. */
@@ -763,14 +912,20 @@
 
     // Spawn ahead of the player (off-screen right), approach from opposite direction
     const worldX = distance + W + rand(40, 160);
+    const size = enemySizeOf(typeId);
 
-    // Prefer standing on ice if possible
-    let y = GROUND_Y - ENEMY_SIZE;
-    for (const p of platforms) {
-      if (p.y < GROUND_Y - 1) continue;
-      if (worldX >= p.x + 10 && worldX <= p.x + p.w - ENEMY_SIZE - 10) {
-        y = p.y - ENEMY_SIZE;
-        break;
+    // Flyers cruise at altitude and never touch the ice; the rest prefer a slab
+    let y;
+    if (def.flying) {
+      y = GROUND_Y - size - rand(FLY_HOVER_MIN, FLY_HOVER_MAX);
+    } else {
+      y = GROUND_Y - size;
+      for (const p of platforms) {
+        if (p.y < GROUND_Y - 1) continue;
+        if (worldX >= p.x + 10 && worldX <= p.x + p.w - size - 10) {
+          y = p.y - size;
+          break;
+        }
       }
     }
 
@@ -778,11 +933,15 @@
       type: typeId,
       x: worldX,
       y,
-      w: ENEMY_SIZE,
-      h: ENEMY_SIZE,
+      w: size,
+      h: size,
       vy: 0,
       shootCd: def.canShoot ? rand(0.4, SHOOT_COOLDOWN) : 0,
       bob: Math.random() * Math.PI * 2,
+      // Flyers hold their cruise line; the sine rides on top of it
+      baseY: y,
+      // Desync spike cycles so a cluster doesn't pulse in lockstep
+      spikeT: def.spikes === "toggle" ? Math.random() * SPIKE_CYCLE : 0,
     });
   }
 
@@ -799,8 +958,7 @@
     const cx = screenX + e.w / 2;
     const cy = e.y + e.h * 0.55;
 
-    const isDropper = e.type === EnemyKind.DROPPER;
-    const color = isDropper ? "rgba(255, 210, 60," : "rgba(255, 80, 70,";
+    const color = def.fxColor;
 
     for (let i = 0; i < 14; i++) {
       const ang = Math.random() * Math.PI * 2;
@@ -925,35 +1083,43 @@
     const approach = ENEMY_APPROACH + Math.min(80, score * 0.04);
 
     for (const e of enemies) {
+      const def = getEnemyDef(e);
+
       // Move opposite to player travel (leftward in world space)
       e.x -= approach * dt;
       e.bob += dt * 6;
+      if (def.spikes === "toggle") e.spikeT += dt;
 
-      // Simple gravity so they fall into gaps
-      e.vy += FALL_GRAVITY * 0.85 * dt;
-      e.y += e.vy * dt;
+      if (def.flying) {
+        // No gravity and no platform test — flyers cruise straight over gaps.
+        e.y = e.baseY + Math.sin(e.bob * 0.5) * FLY_BOB;
+      } else {
+        // Simple gravity so they fall into gaps
+        e.vy += FALL_GRAVITY * 0.85 * dt;
+        e.y += e.vy * dt;
 
-      let onGround = false;
-      for (const p of platforms) {
-        const wasAbove = e.y + e.h - e.vy * dt <= p.y + 2;
-        const feet = e.y + e.h;
-        const overlappingX = e.x + e.w > p.x + 2 && e.x < p.x + p.w - 2;
-        if (
-          overlappingX &&
-          wasAbove &&
-          feet >= p.y &&
-          feet <= p.y + Math.max(12, Math.abs(e.vy) * dt + 8) &&
-          e.vy >= 0
-        ) {
-          e.y = p.y - e.h;
-          e.vy = 0;
-          onGround = true;
+        let onGround = false;
+        for (const p of platforms) {
+          const wasAbove = e.y + e.h - e.vy * dt <= p.y + 2;
+          const feet = e.y + e.h;
+          const overlappingX = e.x + e.w > p.x + 2 && e.x < p.x + p.w - 2;
+          if (
+            overlappingX &&
+            wasAbove &&
+            feet >= p.y &&
+            feet <= p.y + Math.max(12, Math.abs(e.vy) * dt + 8) &&
+            e.vy >= 0
+          ) {
+            e.y = p.y - e.h;
+            e.vy = 0;
+            onGround = true;
+          }
         }
-      }
 
-      // Hop occasionally so they're not pure walls
-      if (onGround && Math.random() < 0.004) {
-        e.vy = JUMP_VELOCITY * 0.55;
+        // Hop occasionally so they're not pure walls
+        if (onGround && Math.random() < 0.004) {
+          e.vy = JUMP_VELOCITY * 0.55;
+        }
       }
 
       // Type-specific behavior (shooting gunners, etc.)
@@ -1284,8 +1450,7 @@
         const sx = e.x - distance;
         const cx = sx + e.w / 2;
         const cy = e.y + e.h * 0.5;
-        const isDropper = e.type === EnemyKind.DROPPER;
-        const color = isDropper ? "rgba(255, 210, 60," : "rgba(255, 80, 70,";
+        const color = getEnemyDef(e).fxColor;
         for (let i = 0; i < 12; i++) {
           const ang = Math.random() * Math.PI * 2;
           const sp = rand(50, 200);
@@ -1707,6 +1872,7 @@
   function startGame() {
     resetWorld();
     resetPlayer();
+    warped = false;
     state = State.PLAYING;
     awaitingResume = false;
     releaseJump();
@@ -1715,6 +1881,85 @@
     setScoreText(0);
     setRunning(true);
     syncResumeGate();
+  }
+
+  /**
+   * Inverse of the speed ramp: the run time that would have covered `d`.
+   * distance = BASE_SPEED·t + SPEED_RAMP·t²/2 until the speed caps, then it
+   * goes linear. Keeps a warped run scrolling as fast as an honest one — the
+   * later enemies are only balanced at the speed they actually appear at.
+   */
+  function runTimeForDistance(d) {
+    const tCap = (MAX_SPEED - BASE_SPEED) / SPEED_RAMP;
+    const dCap = BASE_SPEED * tCap + (SPEED_RAMP * tCap * tCap) / 2;
+    if (d <= dCap) {
+      // Solve (SPEED_RAMP / 2)·t² + BASE_SPEED·t − d = 0
+      return (
+        (-BASE_SPEED + Math.sqrt(BASE_SPEED * BASE_SPEED + 2 * SPEED_RAMP * d)) / SPEED_RAMP
+      );
+    }
+    return tCap + (d - dCap) / MAX_SPEED;
+  }
+
+  /**
+   * Secret desktop shortcut (keys 1–5): jump the run to N thousand points so
+   * the late enemy tiers can be tested without the climb.
+   *
+   * The world is rebuilt rather than extended: ensureWorld() only ever grows
+   * forward, so bumping `distance` alone would generate — and then keep
+   * iterating — hundreds of dead platforms behind the player.
+   */
+  function warpToScore(target) {
+    if (state !== State.PLAYING) startGame();
+    warped = true;
+
+    distance = target * SCORE_TO_DIST;
+    score = distance * 0.1;
+    runTime = runTimeForDistance(distance);
+    speed = Math.min(MAX_SPEED, BASE_SPEED + runTime * SPEED_RAMP);
+
+    // Fresh world around the new position
+    platforms = [];
+    obstacles = [];
+    signs = [];
+    enemies = [];
+    bullets = [];
+    particles = [];
+    fireworks = [];
+    fireworksQueue = 0;
+    clearPowerups();
+
+    const runwayX = distance - 300;
+    platforms.push({ x: runwayX, w: 800, y: GROUND_Y, h: H - GROUND_Y });
+    let rightmost = runwayX + 800;
+    while (rightmost < distance + SPAWN_AHEAD) {
+      rightmost = spawnSegment(rightmost);
+    }
+
+    // Resume signs at the next milestone ahead, or ensureSigns() backfills
+    // every 100-pt marker since zero in one go.
+    nextSignValue = (Math.floor(score / SIGN_INTERVAL) + 1) * SIGN_INTERVAL;
+    ensureSigns();
+
+    lastThemeTier = Math.floor(score / THEME_INTERVAL);
+    themeIndex = lastThemeTier % THEMES.length;
+    themeBlend = 1;
+
+    enemySpawnTimer = 0.4;
+    hitInvuln = 0.5; // brief grace while the new stretch scrolls in
+
+    // Drop the player back onto solid ice
+    player.y = GROUND_Y - player.h;
+    player.vy = 0;
+    player.rotation = 0;
+    player.squish = 1;
+    player.onGround = true;
+    player.coyote = COYOTE_TIME;
+    player.jumpBuffer = 0;
+    player.stompJumpGrace = 0;
+
+    setScoreText(score);
+    shake = Math.max(shake, 6);
   }
 
   /** Drives the in-canvas HUD's visibility (see .is-running in style.css). */
@@ -1734,7 +1979,8 @@
     syncResumeGate();
     setRunning(false);
 
-    if (score > best) {
+    // A warped run is a test run — it never overwrites the saved best.
+    if (!warped && score > best) {
       best = score;
       localStorage.setItem("iceSlideBest", String(Math.floor(best)));
       setBestText(best);
@@ -1743,7 +1989,7 @@
     overlayTitle.textContent = "You fell!";
     overlayMsg.innerHTML =
       `${reason}<br><br>Score: <strong style="color:#5ec8ff">${Math.floor(score)}</strong>` +
-      (score >= best && score > 0 ? " — new best!" : "");
+      (!warped && score >= best && score > 0 ? " — new best!" : "");
     gameWrap.classList.add("game-wrap--menu");
     overlay.classList.remove("hidden");
   }
@@ -1857,6 +2103,15 @@
           feet <= e.y + Math.max(16, Math.abs(player.vy) * dt + 12);
 
         if (overlappingX && wasAbove && landingOnTop) {
+          // Spikes out = the head is a hazard, not a platform
+          if (enemySpikesOut(e)) {
+            if (playerTakeHit(getEnemyDef(e).hitReason)) return;
+            // Absorbed — clear the enemy so the spikes can't chain-kill
+            enemies.splice(i, 1);
+            applyStompBounce(e.y);
+            stompedThisFrame = true;
+            break;
+          }
           const top = e.y;
           stompEnemy(i, ex);
           applyStompBounce(top);
@@ -1956,29 +2211,24 @@
       const ex = e.x - distance;
       if (!rectsOverlap(px, player.y, pw, ph, ex, e.y, e.w, e.h)) continue;
 
-      // Safety: if we're still clearly on top while falling, treat as stomp
+      const def = getEnemyDef(e);
+
+      // Safety: if we're still clearly on top while falling, treat as stomp —
+      // unless the spikes are out, in which case the head is never safe.
       const feet = player.y + ph;
       const mostlyAbove =
         player.vy >= 0 &&
         prevFeet <= e.y + 10 &&
         feet <= e.y + e.h * 0.45;
-      if (mostlyAbove) {
+      if (mostlyAbove && !enemySpikesOut(e)) {
         const top = e.y;
         stompEnemy(ei, ex);
         applyStompBounce(top);
         continue;
       }
 
-      const def = getEnemyDef(e);
-      const reason =
-        e.type === EnemyKind.GUNNER
-          ? "An armed ice raider got you! Stomp them from above — don't run into them."
-          : e.type === EnemyKind.DROPPER
-            ? "You ran into a powerup dropper! Stomp the yellow ? boxes from above."
-            : "A red ice raider crashed into you! Stomp from above or jump over.";
-
       if (def.lethalOnContact) {
-        if (playerTakeHit(reason)) return;
+        if (playerTakeHit(def.hitReason)) return;
         // Shield absorbed — knock enemy away so contact doesn't chain-kill
         enemies.splice(ei, 1);
       }
@@ -2486,17 +2736,241 @@
       ctx.ellipse(0, e.h / 2 + 3, e.w * 0.42, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Branch on type — add new cases here when registering ENEMY_TYPES
-      if (e.type === EnemyKind.DROPPER) {
-        drawEnemyDropper(e);
-      } else if (e.type === EnemyKind.GUNNER) {
-        drawEnemyRaiderBody(e, true);
-      } else {
-        drawEnemyRaiderBody(e, false);
-      }
+      drawEnemyBody(e);
 
       ctx.restore();
     }
+  }
+
+  /**
+   * Type → art. Add a case here when registering a new ENEMY_TYPES entry.
+   * Called with the canvas already translated to the enemy's center.
+   */
+  function drawEnemyBody(e) {
+    switch (e.type) {
+      case EnemyKind.DROPPER:
+        return drawEnemyDropper(e);
+      case EnemyKind.GUNNER:
+        return drawEnemyRaiderBody(e, true);
+      case EnemyKind.FLYER:
+        return drawEnemyFlyer(e);
+      case EnemyKind.SPIKER:
+        return drawEnemySpiker(e);
+      case EnemyKind.BRUTE:
+        return drawEnemyBrute(e);
+      case EnemyKind.FROST:
+        return drawEnemyFrost(e);
+      default:
+        return drawEnemyRaiderBody(e, false);
+    }
+  }
+
+  /**
+   * Shared angry-square shell for the recolored variants.
+   * pal = [highlight, mid, shadow]; ink = brows / mouth; glint = pupil spark.
+   */
+  function drawRaiderShell(e, pal, ink, glint) {
+    const body = ctx.createLinearGradient(-e.w / 2, -e.h / 2, e.w / 2, e.h / 2);
+    body.addColorStop(0, pal[0]);
+    body.addColorStop(0.45, pal[1]);
+    body.addColorStop(1, pal[2]);
+    roundRect(-e.w / 2, -e.h / 2, e.w, e.h, 5);
+    ctx.fillStyle = body;
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255,255,255,0.22)";
+    roundRect(-e.w / 2 + 4, -e.h / 2 + 4, e.w * 0.4, 7, 3);
+    ctx.fill();
+
+    // Angry brows
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-10, -10);
+    ctx.lineTo(-3, -6);
+    ctx.moveTo(10, -10);
+    ctx.lineTo(3, -6);
+    ctx.stroke();
+
+    ctx.fillStyle = ink;
+    ctx.beginPath();
+    ctx.arc(-6, -3, 3.2, 0, Math.PI * 2);
+    ctx.arc(6, -3, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = glint;
+    ctx.beginPath();
+    ctx.arc(-5, -3.5, 1.1, 0, Math.PI * 2);
+    ctx.arc(7, -3.5, 1.1, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-7, 8);
+    ctx.quadraticCurveTo(0, 3, 7, 8);
+    ctx.stroke();
+  }
+
+  /**
+   * Head spikes, drawn *above* the body rect so they never change the
+   * hitbox — enemySpikesOut() alone decides whether a stomp lands.
+   * extend is the same 0..1 the stomp rule reads.
+   */
+  function drawHeadSpikes(e, extend, fill, shadow) {
+    const top = -e.h / 2;
+
+    // Socket plate: reads as the slot the spikes retract into
+    ctx.fillStyle = shadow;
+    roundRect(-e.w * 0.44, top - 1, e.w * 0.88, 4, 2);
+    ctx.fill();
+
+    if (extend <= 0.02) return;
+
+    const n = 4;
+    const span = e.w * 0.84;
+    const len = e.h * 0.4 * extend;
+    const half = (span / n) * 0.42;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const cx = -span / 2 + (span * (i + 0.5)) / n;
+      ctx.moveTo(cx - half, top + 1);
+      ctx.lineTo(cx, top - len);
+      ctx.lineTo(cx + half, top + 1);
+      ctx.closePath();
+    }
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = shadow;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  /** Purple winged raider — flies over gaps, still stompable. */
+  function drawEnemyFlyer(e) {
+    const flap = Math.sin(e.bob * 2.2);
+    const span = e.w * 0.72;
+    const lift = flap * e.h * 0.22;
+
+    ctx.fillStyle = "rgba(226, 200, 255, 0.92)";
+    ctx.strokeStyle = "rgba(110, 60, 175, 0.8)";
+    ctx.lineWidth = 1.5;
+    for (const dir of [-1, 1]) {
+      const tipX = dir * (e.w / 2 + span);
+      ctx.beginPath();
+      ctx.moveTo(dir * (e.w / 2 - 3), -6);
+      // Sweep up and out, then back along a shallower trailing edge
+      ctx.quadraticCurveTo(dir * (e.w / 2 + span * 0.5), -20 + lift, tipX, -6 + lift * 1.2);
+      ctx.quadraticCurveTo(dir * (e.w / 2 + span * 0.4), 5, dir * (e.w / 2 - 3), 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Single membrane rib so the wing doesn't read as a solid blob
+      ctx.beginPath();
+      ctx.moveTo(dir * (e.w / 2 - 2), -3);
+      ctx.quadraticCurveTo(dir * (e.w / 2 + span * 0.55), -6 + lift, tipX, -5 + lift * 1.2);
+      ctx.stroke();
+    }
+
+    drawRaiderShell(e, ["#d9a6ff", "#9b46e0", "#571a8e"], "#1e0733", "#ffd6f5");
+  }
+
+  /** Blue spiker — head spikes cycle out (1s) and in (1s). */
+  function drawEnemySpiker(e) {
+    const extend = enemySpikeExtend(e);
+    drawRaiderShell(e, ["#8fd8ff", "#2f86e0", "#123f7a"], "#04172e", "#c8f0ff");
+    drawHeadSpikes(e, extend, "#dff2ff", "rgba(8, 40, 80, 0.85)");
+
+    // Warning glow while the spikes are actually lethal
+    if (extend > 0.5) {
+      ctx.fillStyle = `rgba(200, 240, 255, ${0.25 * extend})`;
+      ctx.beginPath();
+      ctx.ellipse(0, -e.h / 2 - 6, e.w * 0.5, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /** White spiker — same spikes, permanently out. Never stompable. */
+  function drawEnemyFrost(e) {
+    drawRaiderShell(e, ["#ffffff", "#dfe9f5", "#9aa9bd"], "#2b3a4d", "#7fd8ff");
+    drawHeadSpikes(e, 1, "#ffffff", "rgba(90, 110, 140, 0.9)");
+  }
+
+  /** Black brute — 2×2 raider with shining red eyes. */
+  function drawEnemyBrute(e) {
+    const s = e.w / ENEMY_SIZE_BIG; // art is authored at full 68px
+    const pulse = 0.75 + Math.sin(e.bob * 1.6) * 0.25;
+
+    const body = ctx.createLinearGradient(-e.w / 2, -e.h / 2, e.w / 2, e.h / 2);
+    body.addColorStop(0, "#4a4a58");
+    body.addColorStop(0.45, "#1c1c24");
+    body.addColorStop(1, "#050508");
+    roundRect(-e.w / 2, -e.h / 2, e.w, e.h, 9 * s);
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(160, 60, 60, 0.35)";
+    ctx.lineWidth = 2 * s;
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,0.1)";
+    roundRect(-e.w / 2 + 7 * s, -e.h / 2 + 7 * s, e.w * 0.38, 9 * s, 4 * s);
+    ctx.fill();
+
+    // Cracks
+    ctx.strokeStyle = "rgba(200, 60, 50, 0.25)";
+    ctx.lineWidth = 1.5 * s;
+    ctx.beginPath();
+    ctx.moveTo(-e.w * 0.34, e.h * 0.12);
+    ctx.lineTo(-e.w * 0.12, e.h * 0.26);
+    ctx.lineTo(-e.w * 0.2, e.h * 0.42);
+    ctx.moveTo(e.w * 0.3, -e.h * 0.02);
+    ctx.lineTo(e.w * 0.14, e.h * 0.18);
+    ctx.stroke();
+
+    // Heavy brow
+    ctx.strokeStyle = "#0a0a0e";
+    ctx.lineWidth = 6 * s;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-e.w * 0.34, -e.h * 0.3);
+    ctx.lineTo(-e.w * 0.08, -e.h * 0.16);
+    ctx.moveTo(e.w * 0.34, -e.h * 0.3);
+    ctx.lineTo(e.w * 0.08, -e.h * 0.16);
+    ctx.stroke();
+
+    // Shining red eyes
+    for (const dir of [-1, 1]) {
+      const ex = dir * e.w * 0.2;
+      const ey = -e.h * 0.06;
+      const glow = ctx.createRadialGradient(ex, ey, 0, ex, ey, 13 * s);
+      glow.addColorStop(0, `rgba(255, 70, 60, ${0.75 * pulse})`);
+      glow.addColorStop(1, "rgba(255, 40, 30, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(ex, ey, 13 * s, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ff3320";
+      ctx.beginPath();
+      ctx.arc(ex, ey, 5 * s, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffd0c0";
+      ctx.beginPath();
+      ctx.arc(ex - 1.4 * s, ey - 1.4 * s, 2 * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Jagged grin
+    ctx.strokeStyle = "#0a0a0e";
+    ctx.lineWidth = 3 * s;
+    ctx.beginPath();
+    ctx.moveTo(-e.w * 0.24, e.h * 0.22);
+    for (let i = 0; i < 5; i++) {
+      const x = -e.w * 0.24 + (e.w * 0.48 * (i + 1)) / 5;
+      ctx.lineTo(x, e.h * (i % 2 === 0 ? 0.3 : 0.22));
+    }
+    ctx.stroke();
   }
 
   /** Regular / gunner red angry square. gun=true draws a blaster. */
@@ -2886,20 +3360,33 @@
   }
 
   function drawEnemyIcon(kind, S) {
-    const e = { w: ENEMY_SIZE, h: ENEMY_SIZE };
-    const bob = Math.sin(performance.now() / 420) * 2;
+    const t = performance.now();
+    const bob = Math.sin(t / 420) * 2;
+    // Every type is drawn at ENEMY_SIZE here — the 68px brute wouldn't fit the
+    // 62px tile, so its scale is described in the copy instead of the art.
+    const e = {
+      w: ENEMY_SIZE,
+      h: ENEMY_SIZE,
+      type: kind,
+      bob: t / 400,
+      // Icons animate their spike cycle just like the live enemy
+      spikeT: (t / 1000) % SPIKE_CYCLE,
+    };
     // Gunners carry a blaster off their left side — nudge right to keep it in frame
     const cx = S / 2 + (kind === EnemyKind.GUNNER ? 6 : 0);
+    // Wings reach past the body (pull in); the brute reads as a slab (push out)
+    const scale =
+      kind === EnemyKind.FLYER ? 0.68 : kind === EnemyKind.BRUTE ? 1.35 : 1;
 
     ctx.save();
-    ctx.translate(cx, S / 2 + bob);
+    ctx.translate(cx, S / 2 + bob + (kind === EnemyKind.SPIKER || kind === EnemyKind.FROST ? 5 : 0));
     ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
     ctx.beginPath();
     ctx.ellipse(0, e.h / 2 + 8 - bob, e.w * 0.42, 4, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    if (kind === EnemyKind.DROPPER) drawEnemyDropper(e);
-    else drawEnemyRaiderBody(e, kind === EnemyKind.GUNNER);
+    ctx.scale(scale, scale);
+    drawEnemyBody(e);
 
     ctx.restore();
   }

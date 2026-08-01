@@ -36,6 +36,14 @@ Then open [http://localhost:8000](http://localhost:8000).
 | `R`         | Restart anytime |
 | `Esc`       | Close the Instructions screen |
 
+### Testing shortcut (desktop, undocumented in-game)
+
+`1`–`5` warp a live run to **1k–5k points** so the later enemy tiers can be
+reached without the climb. The world is rebuilt at the new distance and the
+speed ramp is fast-forwarded to match, so the stretch you land in plays exactly
+like an honest run that got there. **A warped run never writes the saved best.**
+Deliberately absent from the Field Manual — it is a test hook, not a feature.
+
 On touch devices every one of those has an equivalent: tap anywhere on the
 playfield to jump (hold for height), tap the game-over screen anywhere to run
 again, and the **⟲** button in the HUD corner stands in for `R`.
@@ -94,9 +102,24 @@ art is crisp on retina screens on desktop too.
   - **Gun** — for **10s**, auto-shoots on-screen enemies ahead; blinks in the last **2s**.
   - **Bridge** — held until used; the next time you fall into a gap, a bridge is placed and you slide across it.
 - After **1000** points: **gunners** (armed raiders) appear and shoot.
+- After **2000** points: **purple winged raiders** — they ignore gravity and
+  **glide over the gaps**, so they reach you where there is no ice to stand on.
+  Still stompable; their cruise altitude is capped so the head always stays
+  inside the jump budget.
+- After **3000** points: **blue spikers** — head spikes **out for 1s, in for 1s**.
+  Landing on them while the spikes are out kills you; stomp on the beat.
+- After **4000** points: **black brutes** — **2×2** the size of a raider with
+  glowing red eyes. Too tall to clear in one jump; go over the top.
+- After **5000** points: **white spikers** — spikes that **never retract**.
+  There is no stomping these; jump them or shoot them.
 - Enemies and powerups use registry tables in `game.js` (`ENEMY_TYPES`, `POWERUP_DEFS`, `POWERUP_DROP_IDS`) so new kinds are easy to add.
 - Every **1000** points: the **environment theme** shifts (sky, aurora, ice tint) and **fireworks** pop in the sky.
-- Speed ramps up the longer you survive. Score is based on distance.
+- Speed ramps up over the **first 20 seconds** (`280 → 400`) and then **stays
+  flat for the rest of the run** — past roughly **680** points the scroll never
+  gets faster again. Score is based on distance.
+- The other difficulty ramps also plateau early: enemy approach speed by **2000**
+  points, spawn density by **2700**, gap width and platform length by **~900**.
+  Past 2700 the only thing that changes is which enemy types have unlocked.
 - Best score is saved in `localStorage`.
 
 ## Files
