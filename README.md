@@ -34,7 +34,7 @@ Then open [http://localhost:8000](http://localhost:8000).
 |-------------|---------------|
 | `Space` / click / tap | Jump (or start / restart) |
 | `R`         | Restart anytime |
-| `Esc`       | Close the Instructions screen |
+| `Esc`       | Close the Instructions or Skins screen |
 
 ### Testing shortcut (desktop, undocumented in-game)
 
@@ -74,8 +74,8 @@ art is crisp on retina screens on desktop too.
 
 - **Entrance screen** — a DOM layer over the canvas, so the live idle world
   (sky, aurora, mountains, drifting snow, the bobbing square) is the moving
-  backdrop rather than a static image. Two actions: **RUN!** and
-  **Instructions**.
+  backdrop rather than a static image. Three actions: **RUN!**,
+  **Instructions** and **Skins**.
 - **Instructions ("Field Manual")** — enemies/hazards and powerups side by
   side. The enemy rows come from `ENEMY_TYPES` (plus `HAZARD_INFO` for the
   static level hazards) and the powerup rows are the dropper pool,
@@ -84,6 +84,11 @@ art is crisp on retina screens on desktop too.
   (`drawManualIcon`), so the art and the unlock scores in the manual can't
   drift from the real game. Register a new enemy or powerup with `name` +
   `desc` and it shows up here on its own.
+- **Skins ("The Wardrobe")** — five cards, generated from `SKIN_DEFS` /
+  `SKIN_ORDER`. Each preview is the **real player sprite** drawn onto a small
+  canvas by `drawPlayer` with that skin temporarily active (`previewSkin`), so
+  a card can never show something the run won't. The choice persists in
+  `localStorage` under `iceSlideSkin`.
 - **Game over** — `RUN AGAIN` restarts, `Menu` returns to the entrance screen.
 
 ## Gameplay
@@ -112,7 +117,13 @@ art is crisp on retina screens on desktop too.
   glowing red eyes. Too tall to clear in one jump; go over the top.
 - After **5000** points: **white spikers** — spikes that **never retract**.
   There is no stomping these; jump them or shoot them.
-- Enemies and powerups use registry tables in `game.js` (`ENEMY_TYPES`, `POWERUP_DEFS`, `POWERUP_DROP_IDS`) so new kinds are easy to add.
+- Enemies, powerups and skins use registry tables in `game.js` (`ENEMY_TYPES`, `POWERUP_DEFS`, `POWERUP_DROP_IDS`, `SKIN_DEFS`) so new kinds are easy to add.
+- **Skins are cosmetic, full stop.** A skin supplies `behind` / `body` /
+  `features` art inside `drawPlayer`'s transform and nothing else — the hitbox
+  is `PLAYER_SIZE` for all of them, and the death frame drops the costume so
+  the red square stays an unambiguous signal. Palette rule for new skins:
+  enemies own red, yellow, purple, blue, black and white, so stay out of those
+  or the player loses track of their own square.
 - Every **1000** points: the **environment theme** shifts (sky, aurora, ice tint) and **fireworks** pop in the sky.
 - Speed ramps up over the **first 20 seconds** (`280 → 400`) and then **stays
   flat for the rest of the run** — past roughly **680** points the scroll never

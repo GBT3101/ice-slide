@@ -20,6 +20,7 @@
   const menuScreen = document.getElementById("menu-screen");
   const menuBestEl = document.getElementById("menu-best");
   const manual = document.getElementById("instructions");
+  const skinsModal = document.getElementById("skins");
   const hudMobile = document.getElementById("hud-mobile");
   const resumeGate = document.getElementById("resume-gate");
 
@@ -353,6 +354,412 @@
   const GUN_SIGHT_Y = 110;
   const PLAYER_BULLET_SPEED = 560;
 
+  // ══════════════════════════════════════════════════════════════
+  // SKINS (cosmetic only)
+  // ──────────────────────────────────────────────────────────────
+  // HOW TO ADD A SKIN (for future agents):
+  //   1. Register an entry in SKIN_DEFS and add its id to SKIN_ORDER.
+  //      The Skins screen is generated straight from that table, and the
+  //      card preview is the real sprite - there is no second art path.
+  //   2. Art hooks run inside drawPlayer's transform, so the origin is the
+  //      square's centre and the box is w × h (always PLAYER_SIZE):
+  //        behind(w, h, t)   - drawn under the body (tails, glow)
+  //        body(w, h, t)     - the square itself
+  //        features(w, h, t) - horns, tape, pips… drawn over the body
+  //        eyes              - false to suppress the default pair
+  //      t is seconds (performance.now() / 1000) - animate off it freely.
+  //      None of the three run on the death frame: a dead square is always
+  //      the plain red one, because that colour is a gameplay signal.
+  //   3. trail  - the colour of the speed streaks behind the square.
+  //      accent - drives the card's glow / equipped ring in the shop.
+  //   4. NOTHING a skin draws may touch player.w / player.h. The hitbox is
+  //      PLAYER_SIZE for every skin; horns and tails are pure decoration.
+  //   5. Keep animation state in skinAnim, never on `player`, and never push
+  //      cosmetic sparkles into `particles` - that array reads as gameplay.
+  //
+  // Palette rule: enemies own red, yellow, purple, blue, black and white,
+  // and the death tint owns salmon. Stay out of those or the player will
+  // lose track of their own square at 400 units/sec.
+  // ══════════════════════════════════════════════════════════════
+
+  /** Per-skin animation state - deliberately separate from `player`. */
+  const skinAnim = {
+    /** Lucky Dice: the settled face, and when the tumble ends (ms). */
+    diceFace: 5,
+    diceRollUntil: 0,
+  };
+
+  function rollDice() {
+    skinAnim.diceRollUntil = performance.now() + 260;
+    skinAnim.diceFace = 4 + Math.floor(Math.random() * 3); // it never rolls low
+  }
+
+  /** Every jump rerolls the die. Cosmetic - no gameplay reads this. */
+  function skinOnJump() {
+    if (equippedSkin === "dice") rollDice();
+  }
+
+  const SKIN_DEFS = {
+    classic: {
+      id: "classic",
+      name: "Classic",
+      tag: "Original",
+      blurb: "The green cube that started the whole sliding problem.",
+      accent: "#3dd68c",
+      trail: "#3dd68c",
+      body(w, h) {
+        const g = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+        g.addColorStop(0, "#7aefc0");
+        g.addColorStop(0.5, "#3dd68c");
+        g.addColorStop(1, "#1faa68");
+        roundRect(-w / 2, -h / 2, w, h, 6);
+        ctx.fillStyle = g;
+        ctx.fill();
+        skinShine(w, h);
+      },
+    },
+
+    hornhead: {
+      id: "hornhead",
+      name: "Hornhead",
+      tag: "Mischief",
+      blurb: "Tiny horns, permanent smirk. The ice gets a little damp underneath.",
+      accent: "#ff5ec8",
+      trail: "#ea3fb0",
+      behind(w, h, t) {
+        // Forked tail, flicking against the run
+        const wag = Math.sin(t * 5) * 3;
+        const tipX = -w / 2 - 11;
+        const tipY = -1 + wag;
+        ctx.strokeStyle = "#c2318f";
+        ctx.lineWidth = 4;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(-w / 2 + 4, 9);
+        ctx.quadraticCurveTo(-w / 2 - 13, 12 + wag, tipX, tipY);
+        ctx.stroke();
+        // Spade tip, sitting on the end of the curve
+        ctx.fillStyle = "#c2318f";
+        ctx.beginPath();
+        ctx.moveTo(tipX + 0.5, tipY - 7.5);
+        ctx.lineTo(tipX - 4, tipY + 1.5);
+        ctx.lineTo(tipX + 5, tipY + 1.5);
+        ctx.closePath();
+        ctx.fill();
+      },
+      body(w, h) {
+        const g = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+        g.addColorStop(0, "#ff9ce0");
+        g.addColorStop(0.5, "#ea3fb0");
+        g.addColorStop(1, "#8f1f6e");
+        roundRect(-w / 2, -h / 2, w, h, 6);
+        ctx.fillStyle = g;
+        ctx.fill();
+        skinShine(w, h);
+      },
+      features(w, h) {
+        drawImpHorn(-1, h);
+        drawImpHorn(1, h);
+        // Angry brows over the standard eyes
+        ctx.strokeStyle = "#3a1030";
+        ctx.lineWidth = 2.6;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(0.5, -10.5);
+        ctx.lineTo(7, -8);
+        ctx.moveTo(18, -10.5);
+        ctx.lineTo(11.5, -8);
+        ctx.stroke();
+        // Smirk with one fang
+        ctx.strokeStyle = "rgba(58, 16, 48, 0.85)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(9, 3, 5.5, 0.15, Math.PI * 0.82);
+        ctx.stroke();
+        ctx.fillStyle = "#fff6fb";
+        ctx.beginPath();
+        ctx.moveTo(11, 6.5);
+        ctx.lineTo(14, 6.5);
+        ctx.lineTo(12.5, 10.5);
+        ctx.closePath();
+        ctx.fill();
+      },
+    },
+
+    boxed: {
+      id: "boxed",
+      name: "Boxed In",
+      tag: "Stealth",
+      blurb: "Nobody suspects a cardboard box. Nobody has ever suspected a box.",
+      accent: "#d8a566",
+      trail: "#b5793c",
+      body(w, h, t) {
+        const g = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+        g.addColorStop(0, "#e0b075");
+        g.addColorStop(0.55, "#b5793c");
+        g.addColorStop(1, "#7d4a1f");
+        roundRect(-w / 2, -h / 2, w, h, 4);
+        ctx.fillStyle = g;
+        ctx.fill();
+
+        ctx.save();
+        roundRect(-w / 2, -h / 2, w, h, 4);
+        ctx.clip();
+
+        // Folded-over lid: a lighter band across the top, creased in the middle
+        ctx.fillStyle = "rgba(255, 226, 178, 0.22)";
+        ctx.fillRect(-w / 2, -h / 2, w, 9);
+        ctx.strokeStyle = "rgba(107, 63, 24, 0.55)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(-w / 2, -h / 2 + 9);
+        ctx.lineTo(w / 2, -h / 2 + 9);
+        ctx.stroke();
+        // The corrugated edge shows in the crease
+        ctx.strokeStyle = "rgba(107, 63, 24, 0.3)";
+        ctx.lineWidth = 1;
+        for (let x = -w / 2 + 3; x < w / 2; x += 4) {
+          ctx.beginPath();
+          ctx.moveTo(x, -h / 2 + 5.5);
+          ctx.lineTo(x, -h / 2 + 9);
+          ctx.stroke();
+        }
+        // Packing tape down the seam - glossy, slightly wrinkled
+        const tape = ctx.createLinearGradient(-5, 0, 5, 0);
+        tape.addColorStop(0, "rgba(255, 243, 214, 0.2)");
+        tape.addColorStop(0.4, "rgba(255, 246, 222, 0.46)");
+        tape.addColorStop(1, "rgba(214, 190, 145, 0.28)");
+        ctx.fillStyle = tape;
+        ctx.fillRect(-5, -h / 2 + 9, 10, h);
+        // Stamped "this way up" arrow, printed slightly crooked
+        ctx.save();
+        ctx.translate(w / 2 - 8, h / 2 - 9);
+        ctx.rotate(-0.18);
+        ctx.strokeStyle = "rgba(178, 54, 42, 0.65)";
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(0, 4.5);
+        ctx.lineTo(0, -4);
+        ctx.moveTo(-3.2, -1);
+        ctx.lineTo(0, -4.5);
+        ctx.lineTo(3.2, -1);
+        ctx.stroke();
+        ctx.restore();
+        // Scuffed corner, because this box has been through things
+        ctx.fillStyle = "rgba(94, 55, 22, 0.22)";
+        ctx.beginPath();
+        ctx.moveTo(-w / 2, h / 2 - 9);
+        ctx.lineTo(-w / 2 + 9, h / 2);
+        ctx.lineTo(-w / 2, h / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      },
+      features(w, h, t) {
+        // Two eye-holes cut in the front, with something glowing inside
+        ctx.fillStyle = "#241304";
+        roundRect(0.5, -8, 8, 7, 2.5);
+        ctx.fill();
+        roundRect(11.5, -8, 8, 7, 2.5);
+        ctx.fill();
+        const blink = Math.sin(t * 1.7) > 0.985 ? 0.15 : 1;
+        ctx.fillStyle = `rgba(255, 240, 190, ${0.95 * blink})`;
+        ctx.beginPath();
+        ctx.arc(5.4, -4.4, 2 * blink + 0.6, 0, Math.PI * 2);
+        ctx.arc(16.4, -4.4, 2 * blink + 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      },
+      eyes: false,
+    },
+
+    disco: {
+      id: "disco",
+      name: "Disco Cube",
+      tag: "Groovy",
+      blurb: "Mirror tiles on all six faces. Zero extra grip, infinite extra sparkle.",
+      accent: "#c9a6ff",
+      trail: "#cfe6ff",
+      body(w, h, t) {
+        const g = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+        g.addColorStop(0, "#f2f7ff");
+        g.addColorStop(0.5, "#a8bcd4");
+        g.addColorStop(1, "#5d7089");
+        roundRect(-w / 2, -h / 2, w, h, 6);
+        ctx.fillStyle = g;
+        ctx.fill();
+
+        ctx.save();
+        roundRect(-w / 2, -h / 2, w, h, 6);
+        ctx.clip();
+
+        // Dark grout, so the tiles read as separate mirrors and not a quilt
+        ctx.fillStyle = "#1d2735";
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+
+        // Mirror tiles, each catching a different colour of the room
+        const n = 5;
+        const cell = w / n;
+        for (let i = 0; i < n; i++) {
+          for (let j = 0; j < n; j++) {
+            const hue = (i * 47 + j * 83 + t * 90) % 360;
+            const lift = 0.5 + 0.5 * Math.sin(t * 2.2 + i * 1.3 + j * 0.7);
+            const x = -w / 2 + i * cell;
+            const y = -h / 2 + j * cell;
+            ctx.fillStyle = `hsl(${hue}, 72%, ${40 + lift * 34}%)`;
+            ctx.fillRect(x + 0.9, y + 0.9, cell - 1.8, cell - 1.8);
+            // Each tile keeps a hard corner glint
+            ctx.fillStyle = `rgba(255,255,255,${0.1 + lift * 0.4})`;
+            ctx.fillRect(x + 0.9, y + 0.9, cell * 0.42, cell * 0.42);
+          }
+        }
+        // Specular sweep across the facets
+        const sweep = ((t * 0.55) % 1) * (w * 2) - w;
+        const sg = ctx.createLinearGradient(sweep - 9, 0, sweep + 9, 0);
+        sg.addColorStop(0, "rgba(255,255,255,0)");
+        sg.addColorStop(0.5, "rgba(255,255,255,0.55)");
+        sg.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = sg;
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+        ctx.restore();
+      },
+      features(w, h, t) {
+        // Stray light beams flicking off the mirror tiles
+        for (let i = 0; i < 3; i++) {
+          const p = (t * 0.8 + i * 0.37) % 1;
+          const ang = i * 2.1 + t * 1.4;
+          const r = w * 0.42 + p * 12;
+          const a = Math.sin(p * Math.PI) * 0.85;
+          if (a <= 0.02) continue;
+          drawSparkStar(
+            Math.cos(ang) * r,
+            Math.sin(ang) * r * 0.8,
+            3 + p * 3,
+            `hsla(${(i * 120 + t * 140) % 360}, 100%, 75%, ${a})`
+          );
+        }
+      },
+    },
+
+    dice: {
+      id: "dice",
+      name: "Lucky Dice",
+      tag: "Chancy",
+      blurb: "Rerolls on every jump and has never once landed under a four. Weighted? Rude.",
+      accent: "#f0dfae",
+      trail: "#efe4c6",
+      body(w, h) {
+        const g = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+        g.addColorStop(0, "#fffdf3");
+        g.addColorStop(0.55, "#f2e6c8");
+        g.addColorStop(1, "#cfba8e");
+        roundRect(-w / 2, -h / 2, w, h, 9);
+        ctx.fillStyle = g;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(120, 100, 62, 0.4)";
+        ctx.lineWidth = 1;
+        roundRect(-w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1, 8.5);
+        ctx.stroke();
+        skinShine(w, h);
+      },
+      features(w) {
+        const now = performance.now();
+        // Mid-tumble the face flickers, then it settles on the rolled value
+        const face =
+          now < skinAnim.diceRollUntil
+            ? 4 + (Math.floor(now / 55) % 3)
+            : skinAnim.diceFace;
+        const o = w * 0.26;
+        const pips = DICE_PIPS[face] || DICE_PIPS[5];
+        ctx.fillStyle = "#2a2621";
+        for (const [px, py] of pips) {
+          ctx.beginPath();
+          ctx.arc(px * o, py * o, 3.1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // The two top pips double as eyes - the die is watching you
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.beginPath();
+        ctx.arc(-o - 0.9, -o - 0.9, 1.1, 0, Math.PI * 2);
+        ctx.arc(o - 0.9, -o - 0.9, 1.1, 0, Math.PI * 2);
+        ctx.fill();
+      },
+      eyes: false,
+    },
+  };
+
+  /** Card order in the shop. Classic first - it's the way home. */
+  const SKIN_ORDER = ["classic", "hornhead", "boxed", "disco", "dice"];
+
+  /** Pip layout in units of a quarter-square, for the faces the die rolls. */
+  const DICE_PIPS = {
+    4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
+    5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]],
+    6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]],
+  };
+
+  let equippedSkin = SKIN_DEFS[localStorage.getItem("iceSlideSkin")]
+    ? localStorage.getItem("iceSlideSkin")
+    : "classic";
+
+  /** Set while a shop card paints its preview, so cards show their own skin. */
+  let previewSkin = null;
+
+  function activeSkin() {
+    return SKIN_DEFS[previewSkin || equippedSkin] || SKIN_DEFS.classic;
+  }
+
+  function equipSkin(id) {
+    if (!SKIN_DEFS[id]) return;
+    equippedSkin = id;
+    try {
+      localStorage.setItem("iceSlideSkin", id);
+    } catch (err) {
+      /* private browsing - the choice just won't survive a reload */
+    }
+  }
+
+  /** The diagonal glare every hard-surfaced skin shares. */
+  function skinShine(w, h) {
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    roundRect(-w / 2 + 4, -h / 2 + 4, w * 0.45, 8, 3);
+    ctx.fill();
+  }
+
+  /** One curved imp horn - thick at the skull, hooking out to a point. */
+  function drawImpHorn(dir, h) {
+    const top = -h / 2;
+    const g = ctx.createLinearGradient(dir * 2, top - 13, dir * 12, top + 2);
+    g.addColorStop(0, "#f0e2d4");
+    g.addColorStop(0.45, "#8d7580");
+    g.addColorStop(1, "#2c1c28");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(dir * 2.5, top + 2);
+    ctx.quadraticCurveTo(dir * 3.5, top - 11, dir * 14.5, top - 13.5);
+    ctx.quadraticCurveTo(dir * 10, top - 6.5, dir * 11.5, top + 2);
+    ctx.closePath();
+    ctx.fill();
+    // Ridge highlight along the leading edge
+    ctx.strokeStyle = "rgba(255, 240, 250, 0.35)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(dir * 4.5, top + 1);
+    ctx.quadraticCurveTo(dir * 5.5, top - 9, dir * 13, top - 12);
+    ctx.stroke();
+  }
+
+  /** A four-pointed sparkle - used for skin glints only, never gameplay. */
+  function drawSparkStar(x, y, r, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y - r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.quadraticCurveTo(x, y, x, y + r);
+    ctx.quadraticCurveTo(x, y, x - r, y);
+    ctx.quadraticCurveTo(x, y, x, y - r);
+    ctx.fill();
+  }
+
   // ── Environment themes (cycle every 1000 pts) ─────────────────
   const THEMES = [
     {
@@ -630,9 +1037,14 @@
     jumpReleased = false;
   }
 
+  /** A front-end modal (manual or wardrobe) owns the screen right now. */
+  function inFrontEndModal() {
+    return menuView === "instructions" || menuView === "skins";
+  }
+
   function onJumpDown(e) {
     if (e.type === "keydown" && e.code !== "Space" && e.key !== " ") return;
-    if (menuView === "instructions" || keyOwnedByUi(e)) return;
+    if (inFrontEndModal() || keyOwnedByUi(e)) return;
     if (e.type === "keydown" && (e.code === "Space" || e.key === " ")) {
       e.preventDefault();
     }
@@ -673,10 +1085,14 @@
       if (menuView === "instructions") {
         e.preventDefault();
         closeManual();
+      } else if (menuView === "skins") {
+        e.preventDefault();
+        closeSkins();
       }
       return;
     }
-    if (menuView === "instructions") return; // manual is modal - keys pass through to it
+    // A front-end modal owns the screen - R, the warp keys and jump all wait
+    if (inFrontEndModal()) return;
     if (portraitLocked) return;
     if (e.code === "KeyR" && !keyOwnedByUi(e)) {
       e.preventDefault();
@@ -1050,6 +1466,7 @@
     player.coyote = 0;
     player.squish = 0.55;
     player.rotation = 0;
+    skinOnJump();
     shake = Math.max(shake, 6);
 
     // Bright lift FX so a perfect stomp-jump reads clearly
@@ -1303,6 +1720,7 @@
     player.squish = 0.62;
     player.rotation = 0;
     player.stompJumpGrace = 0;
+    skinOnJump();
     spawnWingsPop();
     expirePowerup("wings", true);
     shake = Math.max(shake, 4);
@@ -2042,6 +2460,7 @@
       player.jumpBuffer = 0;
       player.squish = 0.72;
       player.stompJumpGrace = 0;
+      skinOnJump();
       spawnDust(player.x + player.w / 2, player.y + player.h);
     }
 
@@ -3113,11 +3532,20 @@
     }
   }
 
+  /**
+   * The square. The shell here - transform, shadow, death tint, eyes, trail -
+   * is shared by every skin; only the surface art is swapped (see SKIN_DEFS),
+   * so squish, rotation and every powerup overlay keep working unchanged.
+   */
   function drawPlayer() {
     const cx = player.x + player.w / 2;
     const cy = player.y + player.h / 2;
     const sx = player.squish;
     const sy = 2 - player.squish;
+    const skin = activeSkin();
+    const t = performance.now() / 1000;
+    const w = player.w;
+    const h = player.h;
 
     ctx.save();
     ctx.translate(cx, cy);
@@ -3130,48 +3558,41 @@
     ctx.ellipse(0, player.h / 2 + 4, player.w * 0.45, 6, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Body
-    const body = ctx.createLinearGradient(
-      -player.w / 2,
-      -player.h / 2,
-      player.w / 2,
-      player.h / 2
-    );
+    // Death is the one frame every skin shares. Costumes come off: the
+    // red square is a gameplay signal, and it must never be ambiguous.
     if (player.dead) {
+      const body = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
       body.addColorStop(0, "#ff8a9a");
       body.addColorStop(1, "#c04050");
+      roundRect(-w / 2, -h / 2, w, h, 6);
+      ctx.fillStyle = body;
+      ctx.fill();
+      skinShine(w, h);
     } else {
-      body.addColorStop(0, "#7aefc0");
-      body.addColorStop(0.5, "#3dd68c");
-      body.addColorStop(1, "#1faa68");
+      if (skin.behind) skin.behind(w, h, t);
+      skin.body(w, h, t);
+      if (skin.features) skin.features(w, h, t);
     }
-    roundRect(-player.w / 2, -player.h / 2, player.w, player.h, 6);
-    ctx.fillStyle = body;
-    ctx.fill();
 
-    // Shine
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
-    roundRect(-player.w / 2 + 4, -player.h / 2 + 4, player.w * 0.45, 8, 3);
-    ctx.fill();
-
-    // Eyes
-    ctx.fillStyle = "#0a1a12";
-    ctx.beginPath();
-    ctx.arc(4, -4, 3.5, 0, Math.PI * 2);
-    ctx.arc(14, -4, 3.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.arc(5, -5, 1.2, 0, Math.PI * 2);
-    ctx.arc(15, -5, 1.2, 0, Math.PI * 2);
-    ctx.fill();
+    if (player.dead || skin.eyes !== false) {
+      ctx.fillStyle = "#0a1a12";
+      ctx.beginPath();
+      ctx.arc(4, -4, 3.5, 0, Math.PI * 2);
+      ctx.arc(14, -4, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(5, -5, 1.2, 0, Math.PI * 2);
+      ctx.arc(15, -5, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.restore();
 
     // Motion trail when fast
     if (state === State.PLAYING && speed > 320 && player.onGround) {
       ctx.globalAlpha = 0.15;
-      ctx.fillStyle = "#3dd68c";
+      ctx.fillStyle = skin.trail;
       for (let i = 1; i <= 3; i++) {
         ctx.fillRect(
           player.x - i * 10,
@@ -3339,6 +3760,134 @@
     }
   }
 
+  // ── Skins screen (cards painted by the real player sprite) ────
+  const SKIN_TILE = 96; // CSS px - matches .skin-stage in style.css
+
+  /** @type {{ctx:CanvasRenderingContext2D, id:string, card:HTMLElement}[]} */
+  const skinCards = [];
+
+  function buildSkins() {
+    const grid = document.getElementById("skin-grid");
+    if (!grid) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+
+    for (const id of SKIN_ORDER) {
+      const def = SKIN_DEFS[id];
+      if (!def) continue;
+
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "skin-card";
+      card.dataset.skin = id;
+      card.setAttribute("role", "radio");
+      card.style.setProperty("--skin-accent", def.accent);
+
+      const stage = document.createElement("span");
+      stage.className = "skin-stage";
+      stage.setAttribute("aria-hidden", "true");
+
+      const cv = document.createElement("canvas");
+      cv.className = "skin-canvas";
+      cv.width = Math.round(SKIN_TILE * dpr);
+      cv.height = Math.round(SKIN_TILE * dpr);
+      const cctx = cv.getContext("2d");
+      cctx.scale(dpr, dpr); // draw in CSS pixels, render crisp on retina
+      stage.append(cv);
+
+      const meta = document.createElement("span");
+      meta.className = "skin-meta";
+      meta.innerHTML =
+        `<span class="skin-name"></span>` +
+        `<span class="skin-tag"></span>` +
+        `<span class="skin-blurb"></span>`;
+      meta.querySelector(".skin-name").textContent = def.name;
+      meta.querySelector(".skin-tag").textContent = def.tag;
+      meta.querySelector(".skin-blurb").textContent = def.blurb;
+
+      const stateEl = document.createElement("span");
+      stateEl.className = "skin-state";
+      stateEl.innerHTML =
+        `<span class="skin-state-off">Equip</span>` +
+        `<span class="skin-state-on"><span class="skin-check" aria-hidden="true">✓</span>Equipped</span>`;
+
+      card.append(stage, meta, stateEl);
+      card.addEventListener("click", () => selectSkin(id, card));
+      grid.append(card);
+      skinCards.push({ ctx: cctx, id, card });
+    }
+    syncSkinCards();
+  }
+
+  function selectSkin(id, card) {
+    if (id === "dice") rollDice(); // show off the gimmick on equip
+    equipSkin(id);
+    syncSkinCards();
+    // Only ever one popped card - the class carries the equipped glow, so a
+    // stale one left on the previous pick would leave two cards breathing.
+    for (const entry of skinCards) entry.card.classList.remove("skin-card--pop");
+    void card.offsetWidth; // reflow, so tapping the same card pops again
+    card.classList.add("skin-card--pop");
+  }
+
+  function syncSkinCards() {
+    for (const entry of skinCards) {
+      const on = entry.id === equippedSkin;
+      entry.card.classList.toggle("skin-card--on", on);
+      entry.card.setAttribute("aria-checked", on ? "true" : "false");
+      entry.card.setAttribute(
+        "aria-label",
+        `${SKIN_DEFS[entry.id].name}${on ? " — equipped" : ""}`
+      );
+    }
+  }
+
+  /** Each card paints its own skin with the live game sprite. */
+  function drawSkinPreviews() {
+    for (let i = 0; i < skinCards.length; i++) {
+      withCtx(skinCards[i].ctx, () => drawSkinPreview(skinCards[i].id, i));
+    }
+  }
+
+  function drawSkinPreview(id, index) {
+    const S = SKIN_TILE;
+    ctx.clearRect(0, 0, S, S);
+
+    const def = SKIN_DEFS[id];
+    const bob = Math.sin(performance.now() / 620 + index * 0.8) * 3;
+
+    // Accent pedestal so each square sits in its own pool of light
+    const glow = ctx.createRadialGradient(S / 2, S * 0.62, 3, S / 2, S * 0.62, S * 0.48);
+    glow.addColorStop(0, hexAlpha(def.accent, 0.22));
+    glow.addColorStop(1, hexAlpha(def.accent, 0));
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, S, S);
+
+    const saved = {
+      x: player.x,
+      y: player.y,
+      squish: player.squish,
+      rotation: player.rotation,
+      dead: player.dead,
+    };
+    previewSkin = id;
+    player.x = (S - PLAYER_SIZE) / 2;
+    player.y = (S - PLAYER_SIZE) / 2 + bob;
+    player.squish = 1;
+    player.rotation = 0;
+    player.dead = false;
+
+    drawPlayer();
+
+    previewSkin = null;
+    Object.assign(player, saved);
+  }
+
+  /** #rrggbb → rgba(). Skin accents are always plain hex. */
+  function hexAlpha(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+  }
+
   // ── Manual icon art (reuses the in-game draw functions) ───────
   function drawManualIcons() {
     for (const icon of manualIcons) {
@@ -3429,6 +3978,13 @@
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, S, S);
 
+    // The whole composition shrinks a touch about the tile centre, so a skin
+    // with horns still fits inside the shield bubble and inside the tile.
+    ctx.save();
+    ctx.translate(S / 2, S / 2);
+    ctx.scale(0.86, 0.86);
+    ctx.translate(-S / 2, -S / 2);
+
     drawPlayer();
     // Timed powerups blink near expiry - Infinity keeps the icon solid.
     const fake = { id, remaining: Infinity, def };
@@ -3436,6 +3992,7 @@
     else if (id === "wings") drawWingsOverlay(fake);
     else if (id === "gun") drawGunOverlay(fake);
     else if (id === "bridge") drawBridgeOverlay(fake);
+    ctx.restore();
 
     Object.assign(player, saved);
   }
@@ -3569,6 +4126,7 @@
     setBestText(best);
     overlay.classList.add("hidden");
     closeManual(true);
+    closeSkins(true);
     gameWrap.classList.add("game-wrap--menu");
     menuScreen.classList.remove("hidden");
     blurUi();
@@ -3580,6 +4138,8 @@
     menuScreen.classList.add("hidden");
     manual.classList.add("hidden");
     manual.setAttribute("aria-hidden", "true");
+    skinsModal.classList.add("hidden");
+    skinsModal.setAttribute("aria-hidden", "true");
     gameWrap.classList.remove("game-wrap--menu");
     blurUi();
   }
@@ -3605,6 +4165,26 @@
     if (run) run.focus();
   }
 
+  function openSkins() {
+    if (menuView !== "home") return;
+    menuView = "skins";
+    skinsModal.classList.remove("hidden");
+    skinsModal.setAttribute("aria-hidden", "false");
+    drawSkinPreviews();
+    const close = document.getElementById("btn-close-skins");
+    if (close) close.focus();
+  }
+
+  function closeSkins(silent) {
+    if (menuView !== "skins" && !silent) return;
+    skinsModal.classList.add("hidden");
+    skinsModal.setAttribute("aria-hidden", "true");
+    if (silent) return;
+    menuView = "home";
+    const skins = document.getElementById("btn-skins");
+    if (skins) skins.focus();
+  }
+
   function bindFrontEnd() {
     document.getElementById("btn-run").addEventListener("click", startGame);
     document.getElementById("btn-run-manual").addEventListener("click", startGame);
@@ -3612,9 +4192,15 @@
     document.getElementById("btn-menu").addEventListener("click", showMenu);
     document.getElementById("btn-instructions").addEventListener("click", openManual);
     document.getElementById("btn-close-manual").addEventListener("click", () => closeManual());
+    document.getElementById("btn-skins").addEventListener("click", openSkins);
+    document.getElementById("btn-run-skins").addEventListener("click", startGame);
+    document.getElementById("btn-close-skins").addEventListener("click", () => closeSkins());
     // Tap/click the dimmed backdrop (not the card) to dismiss
     manual.addEventListener("pointerdown", (e) => {
       if (e.target === manual) closeManual();
+    });
+    skinsModal.addEventListener("pointerdown", (e) => {
+      if (e.target === skinsModal) closeSkins();
     });
 
     // The game-over panel promises "tap anywhere" - but #overlay sits above
@@ -3644,6 +4230,7 @@
     if (!portraitLocked && !awaitingResume) update(dt);
     draw();
     if (menuView === "instructions") drawManualIcons();
+    else if (menuView === "skins") drawSkinPreviews();
     requestAnimationFrame(frame);
   }
 
@@ -3654,6 +4241,7 @@
   // Place player on first platform for menu idle
   player.y = GROUND_Y - PLAYER_SIZE;
   buildManual();
+  buildSkins();
   bindFrontEnd();
   setBestText(best);
   gameWrap.classList.add("game-wrap--menu");

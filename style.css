@@ -491,6 +491,15 @@ kbd {
   font-weight: 900;
 }
 
+/* Skins button wears the player square instead of a glyph */
+.btn-icon--skin {
+  background: linear-gradient(140deg, var(--player-lit) 0%, var(--player) 52%, #1faa68 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  border-radius: 5px;
+  width: 16px;
+  height: 16px;
+}
+
 .menu-hint {
   margin-top: 20px;
   color: var(--muted);
@@ -810,6 +819,196 @@ kbd {
 }
 
 /* ══════════════════════════════════════════════════════════════
+   SKINS — THE WARDROBE
+   A .modal variant, so it inherits the frosted card, the scroll
+   behaviour on short landscape and the reduced-motion blanket.
+   Every card carries its own --skin-accent, set by game.js from
+   the SKIN_DEFS entry, and that one variable drives the glow, the
+   tag pill and the equipped ring.
+   ══════════════════════════════════════════════════════════════ */
+.skins-card {
+  width: min(880px, 100%);
+}
+
+.skin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 12px;
+  padding: 18px 0 4px;
+}
+
+.skin-card {
+  --skin-accent: #5ec8ff;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(94, 200, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(94, 200, 255, 0.06), rgba(6, 16, 28, 0.35));
+  color: var(--text);
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.4),
+    border-color 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
+}
+
+/* Accent wash that only wakes up on hover / when equipped */
+.skin-card::before {
+  content: "";
+  position: absolute;
+  inset: -40% -10% auto;
+  height: 120%;
+  background: radial-gradient(ellipse 55% 60% at 50% 30%, var(--skin-accent), transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+@media (hover: hover) {
+  .skin-card:hover {
+    transform: translateY(-5px);
+    border-color: color-mix(in srgb, var(--skin-accent) 55%, transparent);
+  }
+
+  .skin-card:hover::before {
+    opacity: 0.12;
+  }
+}
+
+.skin-card:active {
+  transform: translateY(-1px) scale(0.985);
+}
+
+.skin-card:focus-visible {
+  outline: 2px solid var(--skin-accent);
+  outline-offset: 2px;
+}
+
+.skin-card--on {
+  border-color: color-mix(in srgb, var(--skin-accent) 70%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--skin-accent) 35%, transparent),
+    0 14px 34px -14px var(--skin-accent);
+}
+
+.skin-card--on::before {
+  opacity: 0.16;
+}
+
+/* ── The little stage each square poses on ───────────────────── */
+.skin-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 96px;
+  border-radius: 13px;
+  background:
+    radial-gradient(ellipse 78% 62% at 50% 42%, rgba(94, 200, 255, 0.09), transparent 72%),
+    rgba(4, 12, 22, 0.5);
+  border: 1px solid rgba(94, 200, 255, 0.1);
+  overflow: hidden;
+}
+
+/* Ice floor the square stands on */
+.skin-stage::after {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: 12px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(168, 216, 255, 0.4), transparent);
+}
+
+.skin-canvas {
+  width: 96px;
+  height: 96px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Card copy ───────────────────────────────────────────────── */
+.skin-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  position: relative;
+}
+
+.skin-name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.skin-tag {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--skin-accent);
+  background: color-mix(in srgb, var(--skin-accent) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--skin-accent) 38%, transparent);
+}
+
+.skin-blurb {
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.42;
+}
+
+/* ── Equip / Equipped pill ───────────────────────────────────── */
+.skin-state {
+  position: relative;
+  margin-top: auto;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid rgba(140, 215, 255, 0.28);
+  color: var(--muted);
+  transition: background 0.22s ease, color 0.22s ease, border-color 0.22s ease;
+}
+
+.skin-state-on {
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.skin-check {
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.skin-card--on .skin-state {
+  color: #04121c;
+  background: var(--skin-accent);
+  border-color: transparent;
+}
+
+.skin-card--on .skin-state-off {
+  display: none;
+}
+
+.skin-card--on .skin-state-on {
+  display: inline-flex;
+}
+
+/* ══════════════════════════════════════════════════════════════
    ANIMATION
    ══════════════════════════════════════════════════════════════ */
 @keyframes ice-shimmer {
@@ -984,6 +1183,70 @@ kbd {
 .modal:not(.hidden) .entry:nth-child(5) { animation-delay: 0.3s; }
 .modal:not(.hidden) .entry:nth-child(6) { animation-delay: 0.35s; }
 
+/* ── Wardrobe choreography ───────────────────────────────────── */
+@keyframes skin-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The equipped card breathes, so the choice is never in doubt */
+@keyframes skin-equipped-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--skin-accent) 35%, transparent),
+      0 14px 34px -14px var(--skin-accent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--skin-accent) 60%, transparent),
+      0 18px 42px -12px var(--skin-accent);
+  }
+}
+
+@keyframes skin-equip-pop {
+  0% {
+    transform: none;
+  }
+  35% {
+    transform: translateY(-6px) scale(1.05);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.modal:not(.hidden) .skin-card {
+  animation: skin-card-in 0.4s cubic-bezier(0.22, 1.1, 0.36, 1) backwards;
+}
+
+.modal:not(.hidden) .skin-card:nth-child(1) { animation-delay: 0.08s; }
+.modal:not(.hidden) .skin-card:nth-child(2) { animation-delay: 0.14s; }
+.modal:not(.hidden) .skin-card:nth-child(3) { animation-delay: 0.2s; }
+.modal:not(.hidden) .skin-card:nth-child(4) { animation-delay: 0.26s; }
+.modal:not(.hidden) .skin-card:nth-child(5) { animation-delay: 0.32s; }
+
+/* Once the entrance has played, the equipped card takes over the slot */
+.modal:not(.hidden) .skin-card--on {
+  animation:
+    skin-card-in 0.4s cubic-bezier(0.22, 1.1, 0.36, 1) backwards,
+    skin-equipped-glow 2.8s 0.5s ease-in-out infinite;
+}
+
+/* Doubled class so it outranks the nth-child stagger delays above */
+.modal:not(.hidden) .skin-card.skin-card--pop {
+  animation:
+    skin-equip-pop 0.42s cubic-bezier(0.22, 1.1, 0.36, 1),
+    skin-equipped-glow 2.8s ease-in-out infinite;
+  animation-delay: 0s, 0.42s;
+}
+
 /* ══════════════════════════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════════════════════════ */
@@ -1047,6 +1310,24 @@ kbd {
 
   .modal-foot {
     justify-content: center;
+  }
+
+  .skin-grid {
+    grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
+    gap: 9px;
+  }
+
+  .skin-stage {
+    height: 78px;
+  }
+
+  .skin-canvas {
+    width: 78px;
+    height: 78px;
+  }
+
+  .skin-blurb {
+    font-size: 0.68rem;
   }
 }
 
@@ -1485,6 +1766,55 @@ body.is-touch .overlay {
 
   .entry-desc {
     font-size: 0.78rem;
+  }
+
+  /* Wardrobe: five squat cards across, blurbs dropped for height. The
+     whole shop has to clear a ~330px-tall viewport without scrolling. */
+  .skin-grid {
+    grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+    gap: 7px;
+    padding: 10px 0 2px;
+  }
+
+  .skin-card {
+    gap: 5px;
+    padding: 7px 6px 8px;
+    border-radius: 12px;
+  }
+
+  .skin-stage {
+    height: 56px;
+  }
+
+  .skin-canvas {
+    width: 56px;
+    height: 56px;
+  }
+
+  .skin-stage::after {
+    bottom: 6px;
+  }
+
+  .skin-blurb {
+    display: none;
+  }
+
+  .skin-meta {
+    gap: 4px;
+  }
+
+  .skin-name {
+    font-size: 0.78rem;
+  }
+
+  .skin-tag {
+    padding: 1px 7px;
+    font-size: 0.55rem;
+  }
+
+  .skin-state {
+    padding: 3px 9px;
+    font-size: 0.58rem;
   }
 
   .modal-foot {

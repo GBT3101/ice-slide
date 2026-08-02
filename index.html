@@ -29,7 +29,7 @@
   <link rel="icon" href="favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=11" />
 </head>
 <body>
   <div class="app">
@@ -79,6 +79,10 @@
             <button id="btn-instructions" class="btn btn-ghost" type="button">
               <span class="btn-icon" aria-hidden="true">?</span>
               <span class="btn-label">Instructions</span>
+            </button>
+            <button id="btn-skins" class="btn btn-ghost" type="button">
+              <span class="btn-icon btn-icon--skin" aria-hidden="true"></span>
+              <span class="btn-label">Skins</span>
             </button>
           </div>
 
@@ -198,6 +202,35 @@
     </div>
   </div>
 
+  <!-- ── Skins (the wardrobe) ────────────────────────────────────── -->
+  <div id="skins" class="modal modal--skins hidden" role="dialog" aria-modal="true"
+       aria-labelledby="skins-title" aria-hidden="true">
+    <div class="modal-card skins-card" role="document">
+      <header class="modal-head">
+        <div>
+          <h2 id="skins-title">The Wardrobe</h2>
+          <p class="modal-sub">Same square, same physics — entirely different vibe.</p>
+        </div>
+        <button id="btn-close-skins" class="icon-btn" type="button" aria-label="Close skins">
+          <span aria-hidden="true">✕</span>
+        </button>
+      </header>
+
+      <div class="skin-grid" id="skin-grid" role="radiogroup" aria-labelledby="skins-title"></div>
+
+      <footer class="modal-foot">
+        <div class="keyline">
+          <span>Cosmetic only — nothing here changes how you slide.</span>
+          <span class="k-pointer"><kbd>ESC</kbd> closes this</span>
+        </div>
+        <button id="btn-run-skins" class="btn btn-run btn-run--sm" type="button">
+          <span class="btn-label">RUN!</span>
+          <span class="btn-sheen" aria-hidden="true"></span>
+        </button>
+      </footer>
+    </div>
+  </div>
+
   <!-- ── Portrait gate — the whole game is a landscape experience ── -->
   <div id="rotate-gate" class="rotate-gate" aria-hidden="true">
     <div class="rotate-inner">
@@ -211,6 +244,6 @@
     </div>
   </div>
 
-  <script src="game.js?v=9"></script>
+  <script src="game.js?v=11"></script>
 </body>
 </html>
