@@ -697,19 +697,20 @@
     6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]],
   };
 
-  let equippedSkin = SKIN_DEFS[localStorage.getItem("iceSlideSkin")]
-    ? localStorage.getItem("iceSlideSkin")
-    : "classic";
+  // Membership via SKIN_ORDER, not SKIN_DEFS - a stored "toString" would
+  // otherwise pass the check and hand activeSkin() a prototype method.
+  const savedSkin = localStorage.getItem("iceSlideSkin");
+  let equippedSkin = SKIN_ORDER.includes(savedSkin) ? savedSkin : "classic";
 
   /** Set while a shop card paints its preview, so cards show their own skin. */
   let previewSkin = null;
 
   function activeSkin() {
-    return SKIN_DEFS[previewSkin || equippedSkin] || SKIN_DEFS.classic;
+    return SKIN_DEFS[previewSkin] || SKIN_DEFS[equippedSkin] || SKIN_DEFS.classic;
   }
 
   function equipSkin(id) {
-    if (!SKIN_DEFS[id]) return;
+    if (!SKIN_ORDER.includes(id)) return;
     equippedSkin = id;
     try {
       localStorage.setItem("iceSlideSkin", id);
@@ -3779,7 +3780,6 @@
       card.type = "button";
       card.className = "skin-card";
       card.dataset.skin = id;
-      card.setAttribute("role", "radio");
       card.style.setProperty("--skin-accent", def.accent);
 
       const stage = document.createElement("span");
@@ -3833,7 +3833,7 @@
     for (const entry of skinCards) {
       const on = entry.id === equippedSkin;
       entry.card.classList.toggle("skin-card--on", on);
-      entry.card.setAttribute("aria-checked", on ? "true" : "false");
+      entry.card.setAttribute("aria-pressed", on ? "true" : "false");
       entry.card.setAttribute(
         "aria-label",
         `${SKIN_DEFS[entry.id].name}${on ? " — equipped" : ""}`
@@ -4179,6 +4179,8 @@
     if (menuView !== "skins" && !silent) return;
     skinsModal.classList.add("hidden");
     skinsModal.setAttribute("aria-hidden", "true");
+    // Drop the equip pop, or the next open skips that card's entrance stagger.
+    for (const entry of skinCards) entry.card.classList.remove("skin-card--pop");
     if (silent) return;
     menuView = "home";
     const skins = document.getElementById("btn-skins");
