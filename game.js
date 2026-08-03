@@ -73,6 +73,12 @@
   const MAX_GAP = 130;
   const MIN_PLATFORM = 180;
   const MAX_PLATFORM = 380;
+  /**
+   * Unbroken ice until 300 pts. New players were dying to a gap before they
+   * had felt the jump at all, so the opening stretch is a runway: spikes and
+   * crates still appear (they teach the jump), but nothing can drop you.
+   */
+  const GAP_FREE_UNTIL_SCORE = 300;
   /** Derived from W - recomputed by layout(), never read before it runs. */
   let SPAWN_AHEAD = W + 200;
 
@@ -80,6 +86,18 @@
   const SIGN_INTERVAL = 100; // points between ice signs
   const THEME_INTERVAL = 1000;
   const SCORE_TO_DIST = 10; // score = distance * 0.1
+
+  /**
+   * The run has an end. At 10,000 the ice stops moving, the sky fills with
+   * fireworks and the square finally gets to look at you. See winRun().
+   */
+  const WIN_SCORE = 10000;
+  const VICTORY_TITLE_START = -90; // banner waits off the top of the canvas
+  const VICTORY_TITLE_DELAY = 0.9; // let the fireworks land first
+  const VICTORY_TITLE_FALL = 1.9; // seconds of descent
+  const VICTORY_DROP_INTERVAL = 0.16; // seconds between raiders raining down
+  /** Where the banner comes to rest - down on the floor, level with the square. */
+  const VICTORY_TITLE_REST = GROUND_Y - 46;
 
   // ══════════════════════════════════════════════════════════════
   // ENEMY SYSTEM (scalable)
@@ -104,6 +122,10 @@
   //   spiker  - blue raider, spikes out 1s / in 1s. Unlocks at 3000 pts.
   //   brute   - black 2×2 hulk with glowing eyes. Unlocks at 4000 pts.
   //   frost   - white raider, spikes never retract. Unlocks at 5000 pts.
+  //   laser   - charges, then fires a ground-level beam. Unlocks at 6000 pts.
+  //   slider  - cyan raider at double approach speed. Unlocks at 7000 pts.
+  //   commando- parachutes in at a fixed screen X. Unlocks at 8000 pts.
+  //   ultimate- golden flying gunner with a white aura. Unlocks at 9000 pts.
   // ══════════════════════════════════════════════════════════════
   const ENEMY_SIZE = 34;
   const ENEMY_SIZE_BIG = ENEMY_SIZE * 2; // brute: 2×2 normal raiders
@@ -116,6 +138,10 @@
     SPIKER: "spiker",
     BRUTE: "brute",
     FROST: "frost",
+    LASER: "laser",
+    SLIDER: "slider",
+    COMMANDO: "commando",
+    ULTIMATE: "ultimate",
   };
 
   /** @type {Record<string, {
@@ -127,6 +153,9 @@
    *   dropPowerup: string|null,
    *   size?: number,          // body px (defaults to ENEMY_SIZE)
    *   flying?: boolean,       // no gravity, hovers over gaps
+   *   speedMul?: number,      // multiplier on the leftward approach speed
+   *   beam?: boolean,         // charges and fires a low horizontal laser
+   *   parachute?: boolean,    // drops in at a locked screen X, then walks
    *   spikes?: "toggle"|"always"|null, // head spikes block stomps while out
    *   fxColor: string,        // particle color prefix ("rgba(r, g, b,")
    *   hitReason: string,      // death message on lethal side contact
@@ -230,6 +259,62 @@
       name: "White Spiker",
       desc: "Bone-white, with spikes that <strong>never retract</strong>. There is <strong>no stomping this one</strong> - jump it clean or shoot it with the gun.",
     },
+    [EnemyKind.LASER]: {
+      id: EnemyKind.LASER,
+      unlockScore: 6000,
+      spawnWeight: 0.9,
+      lethalOnContact: true,
+      canShoot: false,
+      dropPowerup: null,
+      beam: true,
+      fxColor: "rgba(255, 90, 210,",
+      hitReason: "The lazer raider cut you down! The beam runs along the ice - be in the air when it fires.",
+      label: "lazer raider",
+      name: "Lazer Raider",
+      desc: "Winds up a <strong>magenta beam</strong> - the emitter glows and an aim line snaps out, then it fires along the ice for a split second. It only ever sweeps low, so <strong>jump and it passes under you</strong>.",
+    },
+    [EnemyKind.SLIDER]: {
+      id: EnemyKind.SLIDER,
+      unlockScore: 7000,
+      spawnWeight: 0.9,
+      lethalOnContact: true,
+      canShoot: false,
+      dropPowerup: null,
+      speedMul: 2,
+      fxColor: "rgba(120, 240, 255,",
+      hitReason: "An ice raider skated into you! They close twice as fast as the red ones - react early.",
+      label: "ice raider",
+      name: "Ice Raider",
+      desc: "Skates in at <strong>double the usual speed</strong> on a spray of frost. Same stomp, far less time to set it up - commit to the jump the moment you see the streak.",
+    },
+    [EnemyKind.COMMANDO]: {
+      id: EnemyKind.COMMANDO,
+      unlockScore: 8000,
+      spawnWeight: 0.9,
+      lethalOnContact: true,
+      canShoot: false,
+      dropPowerup: null,
+      parachute: true,
+      fxColor: "rgba(150, 190, 120,",
+      hitReason: "A commando raider dropped on your head! Watch the sky once the chutes start falling.",
+      label: "commando raider",
+      name: "Commando Raider",
+      desc: "Drops out of the sky under a parachute with a <strong>knife in its teeth</strong>, holding its spot on screen while the ice runs past beneath it. <strong>Stomp it in mid-air</strong> or clear the patch of ice it is aiming for.",
+    },
+    [EnemyKind.ULTIMATE]: {
+      id: EnemyKind.ULTIMATE,
+      unlockScore: 9000,
+      spawnWeight: 1.1,
+      lethalOnContact: true,
+      canShoot: true,
+      dropPowerup: null,
+      flying: true,
+      fxColor: "rgba(255, 215, 90,",
+      hitReason: "The Ultimate Raider ended your run. Gold, airborne and armed - stomp it or stay clear.",
+      label: "ultimate raider",
+      name: "Ultimate Raider",
+      desc: "The last thing between you and 10,000. It <strong>flies, it shines gold and it shoots</strong>, with white burning eyes and an aura around it. Jump the shots and land on its crown.",
+    },
   };
 
   /**
@@ -240,8 +325,8 @@
     {
       icon: "gap",
       name: "The Gap",
-      tag: "always",
-      desc: "Missing ice. Time your <strong>{{JUMP}}</strong> or you slide straight into the abyss.",
+      tag: "300+ pts",
+      desc: "Missing ice. Time your <strong>{{JUMP}}</strong> or you slide straight into the abyss. The first 300 points are one unbroken runway - the ice only starts breaking up after that.",
     },
     {
       icon: "spike",
@@ -271,6 +356,31 @@
   /** Spiker: 1s out, 1s in, with a short ramp so the pop reads. */
   const SPIKE_CYCLE = 2;
   const SPIKE_RAMP = 0.15;
+
+  /**
+   * Lazer raider. The beam itself only lives for BEAM seconds, which is far
+   * too short to react to - so the reaction is sold on the CHARGE instead:
+   * the emitter spins up and an aim line snaps out along the firing line, and
+   * that is the cue to jump. The beam is the punishment, not the warning.
+   *
+   * The beam runs at the enemy's own mid-height (~17px over the ice), so its
+   * top edge sits far under the 118px jump apex - being airborne always clears
+   * it, which is the whole contract with the player.
+   */
+  const LASER_CHARGE = 0.9;
+  const LASER_BEAM = 0.1; // 100ms, as specified
+  const LASER_RELOAD_MIN = 1.6;
+  const LASER_RELOAD_MAX = 2.6;
+  const LASER_RANGE = 1500; // world units of beam, fired back down the lane
+  const LASER_THICKNESS = 9;
+
+  /** Commando: descent rate while under the chute (world units/sec). */
+  const CHUTE_FALL_SPEED = 62;
+  const CHUTE_SPAWN_Y = -70;
+
+  /** Ultimate raider: cruises a little higher than a flyer, still stompable. */
+  const ULTIMATE_HOVER_MIN = 44;
+  const ULTIMATE_HOVER_MAX = 64;
   const BULLET_SPEED = 320;
   const SHOOT_COOLDOWN = 1.35;
   const STOMP_BOUNCE = JUMP_VELOCITY * 0.42; // hop after squashing a raider
@@ -820,6 +930,7 @@
     MENU: "menu",
     PLAYING: "playing",
     DEAD: "dead",
+    VICTORY: "victory",
   };
 
   let state = State.MENU;
@@ -875,6 +986,22 @@
   let themeBlend = 1; // 0..1 blend into current theme
   let lastThemeTier = 0;
   let fireworksQueue = 0;
+
+  // ── Victory (the 10,000 finale) ───────────────────────────────
+  /** Seconds since the run was won. Drives the whole celebration. */
+  let victoryT = 0;
+  /** Screen Y of the THANK YOU banner as it drops in. */
+  let victoryTitleY = VICTORY_TITLE_START;
+  /** True once the banner has touched down - only then does SPACE restart. */
+  let victoryTitleLanded = false;
+  let victoryDropTimer = 0;
+  /**
+   * Purely decorative raiders raining out of the sky and shattering. They are
+   * not enemies: no collision, no registry entry, they only borrow the art.
+   * @type {{type:string,x:number,y:number,vy:number,size:number,rot:number,
+   *   spin:number,burstY:number}[]}
+   */
+  let victoryDrops = [];
 
   const player = {
     x: PLAYER_X,
@@ -1055,6 +1182,12 @@
       resumeRun();
       return;
     }
+    // The finale is not skippable: SPACE does nothing until the banner has
+    // finished its drop, so a held key from the winning jump can't eat it.
+    if (state === State.VICTORY) {
+      if (victoryTitleLanded) startGame();
+      return;
+    }
     if (state === State.MENU || state === State.DEAD) {
       startGame();
       return;
@@ -1072,13 +1205,22 @@
     jumpHeld = false;
   }
 
-  /** Hidden test shortcut - keyboard only, deliberately absent from the manual. */
+  /**
+   * Hidden test shortcut - keyboard only, deliberately absent from the manual.
+   * 1-9 warp to that many thousand points; 0 lands at 9500 so the 10k ending
+   * can be watched arriving under its own steam instead of being jumped past.
+   */
   const WARP_KEYS = {
     Digit1: 1000,
     Digit2: 2000,
     Digit3: 3000,
     Digit4: 4000,
     Digit5: 5000,
+    Digit6: 6000,
+    Digit7: 7000,
+    Digit8: 8000,
+    Digit9: 9000,
+    Digit0: 9500,
   };
 
   function onKeyDown(e) {
@@ -1150,6 +1292,10 @@
     themeBlend = 1;
     lastThemeTier = 0;
     fireworksQueue = 0;
+    victoryDrops = [];
+    victoryT = 0;
+    victoryTitleY = VICTORY_TITLE_START;
+    victoryTitleLanded = false;
 
     // Starting solid runway so the player can get used to the feel
     let x = -40;
@@ -1167,15 +1313,25 @@
   function spawnSegment(fromX) {
     const gap = rand(MIN_GAP, MAX_GAP) + Math.min(40, runTime * 2);
     const platW = rand(MIN_PLATFORM, MAX_PLATFORM) - Math.min(80, runTime * 3);
-    const start = fromX + Math.max(MIN_GAP, gap);
+    // Keyed off world X, not score, so a warped run still generates real gaps.
+    const gapFree = fromX < GAP_FREE_UNTIL_SCORE * SCORE_TO_DIST;
+    const start = gapFree ? fromX : fromX + Math.max(MIN_GAP, gap);
     const width = Math.max(140, platW);
 
-    platforms.push({
-      x: start,
-      w: width,
-      y: GROUND_Y,
-      h: H - GROUND_Y,
-    });
+    // In the gap-free stretch the slab is *merged* into the one behind it.
+    // Two abutting platforms would each paint their 3px cliff face and leave
+    // a dark seam every few hundred px across the whole opening runway.
+    const prev = gapFree ? lastGroundPlatformEndingAt(start) : null;
+    if (prev) {
+      prev.w += width;
+    } else {
+      platforms.push({
+        x: start,
+        w: width,
+        y: GROUND_Y,
+        h: H - GROUND_Y,
+      });
+    }
 
     // Chance of a low ice spike / crate on the platform (not near edges)
     if (width > 200 && Math.random() < 0.55 + Math.min(0.25, runTime * 0.01)) {
@@ -1206,6 +1362,15 @@
     }
 
     return start + width;
+  }
+
+  /** The ground slab whose right edge lands exactly on x, if there is one. */
+  function lastGroundPlatformEndingAt(x) {
+    for (const p of platforms) {
+      if (p.y < GROUND_Y - 1 || p.isBridge) continue;
+      if (Math.abs(p.x + p.w - x) < 0.5) return p;
+    }
+    return null;
   }
 
   function ensureWorld() {
@@ -1327,14 +1492,22 @@
     if (!typeId) return;
     const def = getEnemyDef(typeId);
 
-    // Spawn ahead of the player (off-screen right), approach from opposite direction
-    const worldX = distance + W + rand(40, 160);
     const size = enemySizeOf(typeId);
+
+    // Commandos drop in over the visible track instead of walking on from the
+    // right, so they get a screen X well ahead of the player and a sky start.
+    const screenX = def.parachute ? rand(W * 0.5, W - 90) : 0;
+    // Spawn ahead of the player (off-screen right), approach from opposite direction
+    const worldX = def.parachute ? distance + screenX : distance + W + rand(40, 160);
 
     // Flyers cruise at altitude and never touch the ice; the rest prefer a slab
     let y;
-    if (def.flying) {
-      y = GROUND_Y - size - rand(FLY_HOVER_MIN, FLY_HOVER_MAX);
+    if (def.parachute) {
+      y = CHUTE_SPAWN_Y;
+    } else if (def.flying) {
+      const lo = typeId === EnemyKind.ULTIMATE ? ULTIMATE_HOVER_MIN : FLY_HOVER_MIN;
+      const hi = typeId === EnemyKind.ULTIMATE ? ULTIMATE_HOVER_MAX : FLY_HOVER_MAX;
+      y = GROUND_Y - size - rand(lo, hi);
     } else {
       y = GROUND_Y - size;
       for (const p of platforms) {
@@ -1359,6 +1532,15 @@
       baseY: y,
       // Desync spike cycles so a cluster doesn't pulse in lockstep
       spikeT: def.spikes === "toggle" ? Math.random() * SPIKE_CYCLE : 0,
+      // Lazer: seconds until the wind-up starts, then charge → 100ms beam
+      laserCd: def.beam ? rand(0.5, LASER_RELOAD_MAX) : 0,
+      chargeT: 0,
+      beamT: 0,
+      // Commando: holds this screen X until the chute is cut on landing
+      chuting: !!def.parachute,
+      screenX,
+      // Ice raider: how far the skid streak trails behind it, 0..1
+      skid: 0,
     });
   }
 
@@ -1503,14 +1685,36 @@
     for (const e of enemies) {
       const def = getEnemyDef(e);
 
-      // Move opposite to player travel (leftward in world space)
-      e.x -= approach * dt;
+      // Move opposite to player travel (leftward in world space). A commando
+      // under its chute is the one exception: it holds a fixed *screen* X, so
+      // its world X has to keep pace with the scroll instead of drifting back.
+      if (e.chuting) {
+        e.x = distance + e.screenX;
+      } else {
+        e.x -= approach * (def.speedMul || 1) * dt;
+      }
       e.bob += dt * 6;
       if (def.spikes === "toggle") e.spikeT += dt;
+      if (def.speedMul > 1) e.skid = Math.min(1, e.skid + dt * 4);
+      if (def.beam) updateLaserRaider(e, dt);
 
       if (def.flying) {
         // No gravity and no platform test - flyers cruise straight over gaps.
         e.y = e.baseY + Math.sin(e.bob * 0.5) * FLY_BOB;
+      } else if (e.chuting) {
+        // Slow, steady float down until the ice (or the abyss) arrives.
+        e.y += CHUTE_FALL_SPEED * dt;
+        for (const p of platforms) {
+          const feet = e.y + e.h;
+          const overlappingX = e.x + e.w > p.x + 2 && e.x < p.x + p.w - 2;
+          if (overlappingX && feet >= p.y && feet <= p.y + 14) {
+            e.y = p.y - e.h;
+            e.vy = 0;
+            e.chuting = false; // chute cut - from here it's a normal raider
+            spawnDust(e.x - distance + e.w / 2, p.y);
+            break;
+          }
+        }
       } else {
         // Simple gravity so they fall into gaps
         e.vy += FALL_GRAVITY * 0.85 * dt;
@@ -1552,6 +1756,59 @@
     }
 
     enemies = enemies.filter((e) => e.x - distance > -120 && e.y < H + 80);
+  }
+
+  /**
+   * Lazer raider cycle: reload → charge (telegraphed) → 100ms beam → reload.
+   * The wind-up only starts once the raider is actually on screen, so a beam
+   * can never arrive from somewhere the player was never given a chance to see.
+   */
+  function updateLaserRaider(e, dt) {
+    if (e.beamT > 0) {
+      e.beamT = Math.max(0, e.beamT - dt);
+      if (e.beamT === 0) e.laserCd = rand(LASER_RELOAD_MIN, LASER_RELOAD_MAX);
+      return;
+    }
+    if (e.chargeT > 0) {
+      e.chargeT = Math.max(0, e.chargeT - dt);
+      if (e.chargeT === 0) {
+        e.beamT = LASER_BEAM;
+        shake = Math.max(shake, 5);
+        const sx = e.x - distance;
+        const cy = e.y + e.h * 0.5;
+        for (let i = 0; i < 8; i++) {
+          particles.push({
+            x: sx,
+            y: cy,
+            vx: rand(-260, -60),
+            vy: rand(-50, 50),
+            life: rand(0.15, 0.35),
+            max: 0.35,
+            r: rand(2, 4),
+            color: "rgba(255, 120, 230,",
+          });
+        }
+      }
+      return;
+    }
+    const sx = e.x - distance;
+    if (sx < player.x - 40 || sx > W + 60) return; // off screen - hold fire
+    e.laserCd -= dt;
+    if (e.laserCd <= 0) e.chargeT = LASER_CHARGE;
+  }
+
+  /**
+   * The live beam in world space, or null. Drawing and the kill check both
+   * read this, so the streak on screen is exactly the rectangle that hurts.
+   */
+  function laserBeamRect(e) {
+    if (!(e.beamT > 0)) return null;
+    return {
+      x: e.x - LASER_RANGE,
+      y: e.y + e.h * 0.5 - LASER_THICKNESS / 2,
+      w: LASER_RANGE,
+      h: LASER_THICKNESS,
+    };
   }
 
   // ── Powerups ──────────────────────────────────────────────────
@@ -2413,6 +2670,174 @@
     overlay.classList.remove("hidden");
   }
 
+  // ── Victory (10,000) ──────────────────────────────────────────
+  /**
+   * The run is over and it was won. Everything that could still kill the
+   * player is cleared, the scroll stops, and the square is planted on solid
+   * ice - "stops on a platform" has to be literally true, so if the winning
+   * step lands over a gap a slab is laid down under it.
+   */
+  function winRun() {
+    if (state !== State.PLAYING) return;
+    state = State.VICTORY;
+
+    // Land exactly on the number, not 10,003.
+    distance = WIN_SCORE * SCORE_TO_DIST;
+    score = WIN_SCORE;
+    setScoreText(score);
+    speed = 0;
+
+    enemies = [];
+    bullets = [];
+    clearPowerups();
+    releaseJump();
+    awaitingResume = false;
+    syncResumeGate();
+
+    victoryT = 0;
+    victoryTitleY = VICTORY_TITLE_START;
+    victoryTitleLanded = false;
+    victoryDropTimer = 0;
+    victoryDrops = [];
+    fireworksQueue = 14;
+    shake = Math.max(shake, 8);
+
+    // Plant the square on solid ground
+    const footX = distance + player.x;
+    let stage = null;
+    for (const p of platforms) {
+      if (p.y < GROUND_Y - 1) continue;
+      if (footX + player.w > p.x + 6 && footX < p.x + p.w - 6) {
+        stage = p;
+        break;
+      }
+    }
+    if (!stage) {
+      stage = { x: footX - 160, w: 420, y: GROUND_Y, h: H - GROUND_Y };
+      platforms.push(stage);
+    }
+    player.y = stage.y - player.h;
+    player.vy = 0;
+    player.onGround = true;
+    player.rotation = 0;
+    player.squish = 1;
+    player.dead = false;
+    spawnDust(player.x + player.w / 2, stage.y);
+
+    // 10,000 is the ceiling, so an honest win is always a best.
+    if (!warped && score > best) {
+      best = score;
+      localStorage.setItem("iceSlideBest", String(Math.floor(best)));
+    }
+    setBestText(best);
+  }
+
+  /** Bounce-in easing so the banner lands rather than merely arriving. */
+  function easeOutBounce(t) {
+    const n = 7.5625;
+    const d = 2.75;
+    if (t < 1 / d) return n * t * t;
+    if (t < 2 / d) return n * (t -= 1.5 / d) * t + 0.75;
+    if (t < 2.5 / d) return n * (t -= 2.25 / d) * t + 0.9375;
+    return n * (t -= 2.625 / d) * t + 0.984375;
+  }
+
+  function updateVictory(dt) {
+    victoryT += dt;
+
+    // Keep the sky busy for as long as the player wants to sit and watch
+    if (fireworksQueue < 4) fireworksQueue += 3;
+
+    // Raiders raining out of the sky, shattering like fireworks
+    victoryDropTimer -= dt;
+    if (victoryDropTimer <= 0) {
+      spawnVictoryDrop();
+      victoryDropTimer = VICTORY_DROP_INTERVAL * rand(0.6, 1.5);
+    }
+    for (let i = victoryDrops.length - 1; i >= 0; i--) {
+      const d = victoryDrops[i];
+      // Gentle gravity: they have to be readable as raiders on the way down,
+      // not just as the bang at the end.
+      d.vy += 190 * dt;
+      d.y += d.vy * dt;
+      d.rot += d.spin * dt;
+      if (d.y >= d.burstY) {
+        shatterVictoryDrop(d);
+        victoryDrops.splice(i, 1);
+      }
+    }
+
+    // Banner descent
+    const t = (victoryT - VICTORY_TITLE_DELAY) / VICTORY_TITLE_FALL;
+    if (t <= 0) {
+      victoryTitleY = VICTORY_TITLE_START;
+    } else if (t < 1) {
+      victoryTitleY =
+        VICTORY_TITLE_START +
+        (VICTORY_TITLE_REST - VICTORY_TITLE_START) * easeOutBounce(t);
+    } else if (!victoryTitleLanded) {
+      victoryTitleY = VICTORY_TITLE_REST;
+      victoryTitleLanded = true;
+      shake = Math.max(shake, 7);
+      spawnDust(W * 0.5 - 90, VICTORY_TITLE_REST + 22);
+      spawnDust(W * 0.5 + 90, VICTORY_TITLE_REST + 22);
+    }
+
+    // The square breathes on the spot
+    player.squish += (1 - player.squish) * Math.min(1, dt * 10);
+    if (shake > 0) shake = Math.max(0, shake - dt * 30);
+  }
+
+  function spawnVictoryDrop() {
+    const ids = Object.keys(ENEMY_TYPES);
+    const type = ids[(Math.random() * ids.length) | 0];
+    const size = enemySizeOf(type);
+    victoryDrops.push({
+      type,
+      x: rand(30, W - 30),
+      y: -size - rand(0, 90),
+      vy: rand(15, 55),
+      size,
+      rot: rand(-0.6, 0.6),
+      spin: rand(-2.4, 2.4),
+      // Weighted low so most of them go off down around the square rather
+      // than in the far corner of the sky.
+      burstY: GROUND_Y - 24 - Math.pow(Math.random(), 1.7) * (GROUND_Y - 130),
+    });
+  }
+
+  /** One falling raider goes off like a firework shell, in its own colour. */
+  function shatterVictoryDrop(d) {
+    const color = getEnemyDef(d.type).fxColor;
+    const n = 18 + ((Math.random() * 10) | 0);
+    for (let i = 0; i < n; i++) {
+      const ang = (Math.PI * 2 * i) / n + rand(-0.12, 0.12);
+      const sp = rand(70, 230);
+      fireworks.push({
+        x: d.x,
+        y: d.y,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp,
+        life: rand(0.45, 0.95),
+        max: 0.95,
+        r: rand(1.6, 3.4),
+        color,
+        trail: Math.random() < 0.45,
+      });
+    }
+    fireworks.push({
+      x: d.x,
+      y: d.y,
+      vx: 0,
+      vy: 0,
+      life: 0.18,
+      max: 0.18,
+      r: 12,
+      color: "rgba(255, 255, 255,",
+      trail: false,
+    });
+  }
+
   // ── Physics & update ──────────────────────────────────────────
   function update(dt) {
     // Snow always drifts
@@ -2424,6 +2849,8 @@
       // Idle bob on menu
       if (state === State.MENU) {
         player.y = GROUND_Y - PLAYER_SIZE + Math.sin(performance.now() / 400) * 2;
+      } else if (state === State.VICTORY) {
+        updateVictory(dt);
       }
       return;
     }
@@ -2433,6 +2860,12 @@
     distance += speed * dt;
     score = distance * 0.1;
     setScoreText(score);
+
+    // The run has a finish line. Everything below is skipped once it's crossed.
+    if (score >= WIN_SCORE) {
+      winRun();
+      return;
+    }
 
     updateThemeAndMilestones();
     ensureWorld();
@@ -2671,6 +3104,17 @@
       }
     }
 
+    // Live lazer beams. Not bullets: the beam is a static world-space band for
+    // its 100ms, so it gets its own check rather than riding updateBullets().
+    for (const e of enemies) {
+      const beam = laserBeamRect(e);
+      if (!beam) continue;
+      if (rectsOverlap(px, player.y, pw, ph, beam.x - distance, beam.y, beam.w, beam.h)) {
+        if (playerTakeHit(getEnemyDef(e).hitReason)) return;
+        e.beamT = 0; // absorbed - kill the beam so it can't chain-hit
+      }
+    }
+
     // Fell into a pit / off the world
     if (player.y > H + 40) {
       die("You slid into the abyss. Jump the gaps!");
@@ -2776,12 +3220,85 @@
     drawObstacles();
     drawEnemies();
     drawBullets();
+    if (state === State.VICTORY) {
+      drawVictoryDrops();
+      // Before the player on purpose: the banner lands *behind* the square,
+      // which is the one thing on screen that mustn't be covered up.
+      drawVictoryTitle();
+    }
     drawPlayer();
     drawPowerupOverlays();
     drawParticles();
     drawSnow();
     drawGroundGlow();
 
+    ctx.restore();
+  }
+
+  /** The decorative raiders raining down during the finale. */
+  function drawVictoryDrops() {
+    for (const d of victoryDrops) {
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      ctx.rotate(d.rot);
+      drawEnemyBody({
+        type: d.type,
+        w: d.size,
+        h: d.size,
+        bob: d.rot * 3,
+        spikeT: 0,
+        chargeT: 0,
+        beamT: 0,
+        chuting: false,
+        skid: 0,
+      });
+      ctx.restore();
+    }
+  }
+
+  /**
+   * THANK YOU FOR PLAYING, dropped in from above the canvas and bounced onto
+   * the floor beside the square. Nothing restarts the run until it lands -
+   * see onJumpDown - so the celebration can never be mashed through.
+   */
+  function drawVictoryTitle() {
+    const cx = W / 2;
+    const y = victoryTitleY;
+    const glow = 0.55 + Math.sin(performance.now() / 220) * 0.2;
+
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Backing plate so the words survive the fireworks behind them
+    ctx.font = "bold 38px system-ui, sans-serif";
+    const w = Math.min(W - 40, ctx.measureText("THANK YOU FOR PLAYING").width + 56);
+    ctx.fillStyle = "rgba(6, 20, 38, 0.55)";
+    roundRect(cx - w / 2, y - 34, w, 68, 16);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(150, 230, 255, ${0.3 + glow * 0.35})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.shadowColor = `rgba(120, 220, 255, ${glow})`;
+    ctx.shadowBlur = 24;
+    const g = ctx.createLinearGradient(0, y - 22, 0, y + 22);
+    g.addColorStop(0, "#ffffff");
+    g.addColorStop(0.5, "#bfe9ff");
+    g.addColorStop(1, "#5ec8ff");
+    ctx.fillStyle = g;
+    ctx.fillText("THANK YOU FOR PLAYING", cx, y);
+    ctx.shadowBlur = 0;
+
+    if (victoryTitleLanded) {
+      ctx.font = "600 15px system-ui, sans-serif";
+      ctx.fillStyle = `rgba(220, 240, 255, ${0.55 + glow * 0.45})`;
+      ctx.fillText(
+        isTouch ? "Tap to run again" : "Press SPACE to run again",
+        cx,
+        y - 54
+      );
+    }
     ctx.restore();
   }
 
@@ -3162,6 +3679,68 @@
 
       ctx.restore();
     }
+
+    // Beams live in screen space across the whole lane, so they can't be drawn
+    // inside the per-enemy translate above. Painted last: on top of everything.
+    drawLaserBeams();
+  }
+
+  /**
+   * The lazer raider's aim line (during the wind-up) and the beam itself.
+   * The aim line is deliberately the loud part - it's the second of warning
+   * the player actually gets - while the beam is a hard white flash.
+   */
+  function drawLaserBeams() {
+    for (const e of enemies) {
+      if (!getEnemyDef(e).beam) continue;
+      // No bob here on purpose: this is the line laserBeamRect() kills along,
+      // and the drawn streak has to be exactly the rectangle that hurts.
+      const cy = e.y + e.h * 0.5;
+      const originX = e.x - distance - e.w / 2 - 13;
+      if (originX < -40 || originX > W + 60) continue;
+
+      if (e.chargeT > 0) {
+        // Aim line: thin, dashed and building in brightness
+        const charge = 1 - e.chargeT / LASER_CHARGE;
+        ctx.save();
+        ctx.globalAlpha = 0.25 + charge * 0.55;
+        ctx.strokeStyle = "#ff6ce0";
+        ctx.lineWidth = 1 + charge * 1.5;
+        ctx.setLineDash([10, 8]);
+        ctx.lineDashOffset = -(performance.now() / 14) % 18;
+        ctx.beginPath();
+        ctx.moveTo(originX, cy);
+        ctx.lineTo(Math.max(-20, originX - LASER_RANGE), cy);
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
+
+      const beam = laserBeamRect(e);
+      if (!beam) continue;
+      const bx = beam.x - distance;
+      const fade = e.beamT / LASER_BEAM; // 1 → 0 across the 100ms
+      const h = beam.h;
+
+      const g = ctx.createLinearGradient(0, beam.y, 0, beam.y + h);
+      g.addColorStop(0, "rgba(255, 130, 240, 0)");
+      g.addColorStop(0.5, `rgba(255, 255, 255, ${0.65 + fade * 0.35})`);
+      g.addColorStop(1, "rgba(255, 130, 240, 0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(bx, beam.y - h * 0.6, beam.w, h * 2.2);
+
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.8 + fade * 0.2})`;
+      ctx.fillRect(bx, beam.y + h * 0.32, beam.w, h * 0.36);
+
+      // Muzzle flare at the emitter
+      const flare = ctx.createRadialGradient(originX, cy, 0, originX, cy, 26);
+      flare.addColorStop(0, `rgba(255, 255, 255, ${0.85 * fade})`);
+      flare.addColorStop(1, "rgba(255, 90, 220, 0)");
+      ctx.fillStyle = flare;
+      ctx.beginPath();
+      ctx.arc(originX, cy, 26, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   /**
@@ -3182,6 +3761,14 @@
         return drawEnemyBrute(e);
       case EnemyKind.FROST:
         return drawEnemyFrost(e);
+      case EnemyKind.LASER:
+        return drawEnemyLaser(e);
+      case EnemyKind.SLIDER:
+        return drawEnemySlider(e);
+      case EnemyKind.COMMANDO:
+        return drawEnemyCommando(e);
+      case EnemyKind.ULTIMATE:
+        return drawEnemyUltimate(e);
       default:
         return drawEnemyRaiderBody(e, false);
     }
@@ -3456,6 +4043,283 @@
     }
   }
 
+  /**
+   * Lazer raider - magenta shell with a barrel emitter on its leading side.
+   * The barrel swells and the core whitens through the charge, so the tell is
+   * on the sprite itself as well as in the aim line drawn by drawLaserBeams().
+   */
+  function drawEnemyLaser(e) {
+    const charge = e.chargeT > 0 ? 1 - e.chargeT / LASER_CHARGE : 0;
+    const firing = e.beamT > 0;
+
+    drawRaiderShell(e, ["#ffa8f0", "#c02fa8", "#5d0a55"], "#2a0026", "#ffe4fb");
+
+    // Dorsal capacitor fins - they light up as the shot builds
+    ctx.fillStyle = firing
+      ? "rgba(255, 255, 255, 0.95)"
+      : `rgba(255, 130, 235, ${0.35 + charge * 0.6})`;
+    for (const dx of [-8, 0, 8]) {
+      roundRect(dx - 2.5, -e.h / 2 - 5 - charge * 3, 5, 6 + charge * 3, 2);
+      ctx.fill();
+    }
+
+    // Emitter barrel, pointing back down the lane at the player
+    const bx = -e.w / 2 - 13;
+    ctx.fillStyle = "#3d1038";
+    roundRect(bx, -4, 15, 8, 2);
+    ctx.fill();
+    ctx.fillStyle = "#7c2b70";
+    ctx.fillRect(bx + 2, -2.5, 11, 2);
+
+    // Muzzle core: a pinprick at rest, a white-hot bulb at the moment of fire
+    const r = firing ? 6.5 : 2 + charge * 4;
+    const glow = ctx.createRadialGradient(bx, 0, 0, bx, 0, r * 2.6);
+    glow.addColorStop(0, firing ? "rgba(255,255,255,0.95)" : `rgba(255, 110, 235, ${0.5 + charge * 0.5})`);
+    glow.addColorStop(1, "rgba(255, 60, 200, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(bx, 0, r * 2.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = firing ? "#ffffff" : "#ff7ae0";
+    ctx.beginPath();
+    ctx.arc(bx, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /**
+   * Ice raider - cyan raider at double speed. The read has to happen fast, so
+   * the speed is drawn as well as felt: a frozen skid streak trailing off the
+   * back edge and a spray of chips kicked up off the ice.
+   */
+  function drawEnemySlider(e) {
+    const skid = e.skid == null ? 1 : e.skid;
+
+    // Skid streak - it trails behind, i.e. to the right of the leftward charge
+    if (skid > 0.02) {
+      const len = e.w * (1.1 + skid * 1.5);
+      const streak = ctx.createLinearGradient(e.w / 2, 0, e.w / 2 + len, 0);
+      streak.addColorStop(0, `rgba(150, 245, 255, ${0.55 * skid})`);
+      streak.addColorStop(1, "rgba(150, 245, 255, 0)");
+      ctx.fillStyle = streak;
+      for (const off of [-7, 2, 9]) {
+        const h = 3.5 - Math.abs(off) * 0.12;
+        roundRect(e.w / 2 - 2, off - h / 2, len, h, h / 2);
+        ctx.fill();
+      }
+
+      // Chips off the ice at its feet
+      ctx.fillStyle = `rgba(215, 250, 255, ${0.5 * skid})`;
+      for (let i = 0; i < 4; i++) {
+        const px = e.w / 2 + 3 + ((e.bob * 37 + i * 23) % (e.w * 1.2));
+        const py = e.h / 2 - 2 - ((i * 7 + e.bob * 11) % 12);
+        ctx.beginPath();
+        ctx.arc(px, py, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    drawRaiderShell(e, ["#d6feff", "#2ec6e6", "#0b5f86"], "#062534", "#ffffff");
+
+    // Frozen rime along the leading edge
+    ctx.fillStyle = "rgba(235, 255, 255, 0.65)";
+    roundRect(-e.w / 2 - 1, -e.h / 2 + 6, 3.5, e.h - 12, 1.75);
+    ctx.fill();
+  }
+
+  /**
+   * Commando raider - olive shell, knife clenched in its teeth, and a canopy
+   * overhead while it is still falling. The chute is drawn above the body rect
+   * so it never changes what the stomp check sees.
+   */
+  function drawEnemyCommando(e) {
+    const sway = Math.sin(e.bob * 0.55) * 0.16;
+
+    if (e.chuting) {
+      ctx.save();
+      ctx.rotate(sway);
+      const canopyY = -e.h / 2 - 34;
+      const rx = e.w * 0.95;
+
+      // Cords
+      ctx.strokeStyle = "rgba(240, 245, 255, 0.75)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (const dx of [-1, -0.45, 0.45, 1]) {
+        ctx.moveTo(dx * (e.w * 0.34), -e.h / 2 + 2);
+        ctx.lineTo(dx * rx * 0.86, canopyY + 6);
+      }
+      ctx.stroke();
+
+      // Canopy - three panels so it reads as fabric, not a bowl
+      const panels = [
+        ["#f2f6ff", "#b9c6dc"],
+        ["#e8402f", "#9d1c14"],
+        ["#f2f6ff", "#b9c6dc"],
+      ];
+      for (let i = 0; i < 3; i++) {
+        const a0 = Math.PI + (Math.PI * i) / 3;
+        const a1 = Math.PI + (Math.PI * (i + 1)) / 3;
+        const g = ctx.createLinearGradient(0, canopyY - 18, 0, canopyY + 8);
+        g.addColorStop(0, panels[i][0]);
+        g.addColorStop(1, panels[i][1]);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(0, canopyY + 4);
+        ctx.ellipse(0, canopyY + 4, rx, 20, 0, a0, a1);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.strokeStyle = "rgba(40, 60, 90, 0.35)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(0, canopyY + 4, rx, 20, 0, Math.PI, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawRaiderShell(e, ["#b8cf8a", "#6f8f42", "#31461a"], "#131c08", "#eaffc0");
+
+    // Field cap over the brows
+    ctx.fillStyle = "#435622";
+    roundRect(-e.w / 2 + 1, -e.h / 2 - 3, e.w - 2, 7, 2);
+    ctx.fill();
+    ctx.fillStyle = "#5d7530";
+    roundRect(-e.w / 2 - 4, -e.h / 2 + 2, 11, 3, 1.5);
+    ctx.fill();
+
+    // Knife clenched in its teeth - blade out to the leading side
+    ctx.save();
+    ctx.translate(0, 7.5);
+    ctx.fillStyle = "#3a2a18";
+    roundRect(4, -1.8, 9, 3.6, 1.6);
+    ctx.fill();
+    ctx.fillStyle = "#8f6a3a";
+    ctx.fillRect(2.5, -2.6, 2, 5.2);
+    const blade = ctx.createLinearGradient(-14, 0, 2, 0);
+    blade.addColorStop(0, "#ffffff");
+    blade.addColorStop(0.5, "#cfe0ee");
+    blade.addColorStop(1, "#8fa3b5");
+    ctx.fillStyle = blade;
+    ctx.beginPath();
+    ctx.moveTo(2, -2.4);
+    ctx.lineTo(-13, -1.2);
+    ctx.lineTo(-13, 1);
+    ctx.lineTo(2, 2.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * Ultimate Raider - the 9000+ boss read: gold body, white burning eyes and a
+   * radiating aura, airborne and armed. Everything here is additive glow, so
+   * the silhouette stays a plain square and the stomp target stays honest.
+   */
+  function drawEnemyUltimate(e) {
+    const pulse = 0.7 + Math.sin(e.bob * 1.4) * 0.3;
+
+    // Radiating aura - the god-cube halo
+    const aura = ctx.createRadialGradient(0, 0, e.w * 0.35, 0, 0, e.w * (1.15 + pulse * 0.18));
+    aura.addColorStop(0, `rgba(255, 236, 170, ${0.42 * pulse})`);
+    aura.addColorStop(0.55, `rgba(255, 190, 60, ${0.2 * pulse})`);
+    aura.addColorStop(1, "rgba(255, 170, 30, 0)");
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(0, 0, e.w * (1.15 + pulse * 0.18), 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rays, slowly turning
+    ctx.save();
+    ctx.rotate(e.bob * 0.16);
+    ctx.strokeStyle = `rgba(255, 245, 200, ${0.3 * pulse})`;
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    for (let i = 0; i < 8; i++) {
+      const a = (Math.PI * 2 * i) / 8;
+      const r0 = e.w * 0.72;
+      const r1 = r0 + (i % 2 === 0 ? 11 : 6) * (0.7 + pulse * 0.5);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+      ctx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Golden shell
+    const body = ctx.createLinearGradient(-e.w / 2, -e.h / 2, e.w / 2, e.h / 2);
+    body.addColorStop(0, "#fff4c2");
+    body.addColorStop(0.35, "#ffd24a");
+    body.addColorStop(0.72, "#e09a14");
+    body.addColorStop(1, "#8a5606");
+    roundRect(-e.w / 2, -e.h / 2, e.w, e.h, 6);
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 250, 210, 0.8)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    roundRect(-e.w / 2 + 4, -e.h / 2 + 4, e.w * 0.42, 6, 3);
+    ctx.fill();
+
+    // Crown notches
+    ctx.fillStyle = "#ffe9a0";
+    for (const dx of [-10, 0, 10]) {
+      ctx.beginPath();
+      ctx.moveTo(dx - 4, -e.h / 2);
+      ctx.lineTo(dx, -e.h / 2 - 6);
+      ctx.lineTo(dx + 4, -e.h / 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Brows, kept dark so the white eyes read as light and not as holes
+    ctx.strokeStyle = "#6b4304";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-11, -11);
+    ctx.lineTo(-3, -7);
+    ctx.moveTo(11, -11);
+    ctx.lineTo(3, -7);
+    ctx.stroke();
+
+    // Burning white eyes
+    for (const dir of [-1, 1]) {
+      const ex = dir * 6;
+      const ey = -2.5;
+      const g = ctx.createRadialGradient(ex, ey, 0, ex, ey, 11);
+      g.addColorStop(0, `rgba(255, 255, 255, ${0.95 * pulse})`);
+      g.addColorStop(0.4, `rgba(255, 250, 220, ${0.45 * pulse})`);
+      g.addColorStop(1, "rgba(255, 240, 180, 0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(ex, ey, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(ex, ey, 3.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = "#6b4304";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-7, 9);
+    ctx.quadraticCurveTo(0, 4, 7, 9);
+    ctx.stroke();
+
+    // Golden blaster
+    ctx.fillStyle = "#b8860b";
+    ctx.fillRect(-e.w / 2 - 11, -2, 13, 7);
+    ctx.fillStyle = "#ffe08a";
+    ctx.fillRect(-e.w / 2 - 15, 0, 7, 3);
+    ctx.fillStyle = `rgba(255, 255, 235, ${0.7 + pulse * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(-e.w / 2 - 15, 1.5, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   /** Yellow powerup dropper with a "?" mark - stomp to grant a powerup. */
   function drawEnemyDropper(e) {
     const body = ctx.createLinearGradient(-e.w / 2, -e.h / 2, e.w / 2, e.h / 2);
@@ -3575,7 +4439,11 @@
       if (skin.features) skin.features(w, h, t);
     }
 
-    if (player.dead || skin.eyes !== false) {
+    if (state === State.VICTORY) {
+      // It made it. The eyes come round off the profile line to face you,
+      // and the square finally smiles. Costume stays on - it earned it.
+      drawVictoryFace();
+    } else if (player.dead || skin.eyes !== false) {
       ctx.fillStyle = "#0a1a12";
       ctx.beginPath();
       ctx.arc(4, -4, 3.5, 0, Math.PI * 2);
@@ -3603,6 +4471,46 @@
         );
       }
       ctx.globalAlpha = 1;
+    }
+  }
+
+  /**
+   * The winner's face: centred eyes (the run pose has them shoved right, in
+   * profile) and a wide grin. Drawn inside drawPlayer's transform.
+   */
+  function drawVictoryFace() {
+    const blink = Math.sin(performance.now() / 900);
+    const lid = blink > 0.965 ? 0.25 : 1; // occasional slow blink
+
+    ctx.fillStyle = "#0a1a12";
+    for (const dx of [-7, 7]) {
+      ctx.beginPath();
+      ctx.ellipse(dx, -5, 3.6, 3.6 * lid, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (lid > 0.5) {
+      ctx.fillStyle = "#fff";
+      for (const dx of [-6, 8]) {
+        ctx.beginPath();
+        ctx.arc(dx, -6.2, 1.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Grin
+    ctx.strokeStyle = "#0a1a12";
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(0, 3, 8, 0.24 * Math.PI, 0.76 * Math.PI);
+    ctx.stroke();
+
+    // Happy cheeks
+    ctx.fillStyle = "rgba(255, 130, 150, 0.4)";
+    for (const dx of [-12, 12]) {
+      ctx.beginPath();
+      ctx.ellipse(dx, 2, 3.4, 2.2, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -3922,15 +4830,41 @@
       bob: t / 400,
       // Icons animate their spike cycle just like the live enemy
       spikeT: (t / 1000) % SPIKE_CYCLE,
+      // The lazer icon loops its wind-up so the tile shows the tell, not the beam
+      chargeT: kind === EnemyKind.LASER ? LASER_CHARGE * (((t / 1400) % 1)) : 0,
+      beamT: 0,
+      // Commandos are only ever recognisable with the canopy up
+      chuting: kind === EnemyKind.COMMANDO,
+      skid: 1,
     };
-    // Gunners carry a blaster off their left side - nudge right to keep it in frame
-    const cx = S / 2 + (kind === EnemyKind.GUNNER ? 6 : 0);
-    // Wings reach past the body (pull in); the brute reads as a slab (push out)
+    // Blaster-carrying types hang a barrel off their left side - nudge right
+    const cx =
+      S / 2 + (kind === EnemyKind.GUNNER || kind === EnemyKind.ULTIMATE ? 6 : 0);
+    // Wings, chutes and auras reach past the body (pull in); the brute reads
+    // as a slab (push out).
     const scale =
-      kind === EnemyKind.FLYER ? 0.68 : kind === EnemyKind.BRUTE ? 1.35 : 1;
+      kind === EnemyKind.FLYER
+        ? 0.68
+        : kind === EnemyKind.BRUTE
+          ? 1.35
+          : kind === EnemyKind.COMMANDO
+            ? 0.58
+            : kind === EnemyKind.ULTIMATE
+              ? 0.7
+              : kind === EnemyKind.LASER || kind === EnemyKind.SLIDER
+                ? 0.86
+                : 1;
+
+    // The chute sits well above the body - drop the whole rig to centre it
+    const yNudge =
+      kind === EnemyKind.SPIKER || kind === EnemyKind.FROST
+        ? 5
+        : kind === EnemyKind.COMMANDO
+          ? 12
+          : 0;
 
     ctx.save();
-    ctx.translate(cx, S / 2 + bob + (kind === EnemyKind.SPIKER || kind === EnemyKind.FROST ? 5 : 0));
+    ctx.translate(cx, S / 2 + bob + yNudge);
     ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
     ctx.beginPath();
     ctx.ellipse(0, e.h / 2 + 8 - bob, e.w * 0.42, 4, 0, 0, Math.PI * 2);

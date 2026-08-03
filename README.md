@@ -38,7 +38,9 @@ Then open [http://localhost:8000](http://localhost:8000).
 
 ### Testing shortcut (desktop, undocumented in-game)
 
-`1`–`5` warp a live run to **1k–5k points** so the later enemy tiers can be
+`1`–`9` warp a live run to **1k–9k points**, and `0` lands at **9500** so the
+10,000 ending can be watched arriving under its own steam. This lets the later
+enemy tiers be
 reached without the climb. The world is rebuilt at the new distance and the
 speed ramp is fast-forwarded to match, so the stretch you land in plays exactly
 like an honest run that got there. **A warped run never writes the saved best.**
@@ -94,7 +96,9 @@ art is crisp on retina screens on desktop too.
 ## Gameplay
 
 - The square **auto-slides** to the right (world scrolls left).
-- **Gaps** in the ice — miss the jump and you fall.
+- **Gaps** in the ice — miss the jump and you fall. **The first 300 points are
+  one unbroken runway**: new players were dying to a gap before they had felt
+  the jump at all, so nothing can drop you until the ice starts breaking up.
 - **Spikes** and **ice crates** on platforms — side contact kills you. **Ice
   crates** can be **stomped** from above like an enemy: they shatter and you get
   the same bounce. Spikes never can.
@@ -117,6 +121,19 @@ art is crisp on retina screens on desktop too.
   glowing red eyes. Too tall to clear in one jump; go over the top.
 - After **5000** points: **white spikers** — spikes that **never retract**.
   There is no stomping these; jump them or shoot them.
+- After **6000** points: **lazer raiders** — they wind up a magenta beam
+  (glowing emitter plus a dashed aim line) and then fire it along the ice for
+  **100ms**. The beam only ever runs at raider mid-height, well under the jump
+  apex, so **being airborne always clears it**. The wind-up is the warning; the
+  beam is far too brief to react to on its own.
+- After **7000** points: **ice raiders** — cyan, closing at **double** the usual
+  approach speed on a frozen skid streak. Same stomp, much less time to set up.
+- After **8000** points: **commando raiders** — they parachute in holding a
+  **fixed screen X** while the ice scrolls past underneath, knife in their
+  teeth. Stomp them in the air, or clear the patch of ice they are aiming for.
+  One that drifts over a gap simply rides its chute into the abyss.
+- After **9000** points: the **Ultimate Raider** — golden, airborne, armed, with
+  burning white eyes and a radiating aura. Jump the shots and land on its crown.
 - Enemies, powerups and skins use registry tables in `game.js` (`ENEMY_TYPES`, `POWERUP_DEFS`, `POWERUP_DROP_IDS`, `SKIN_DEFS`) so new kinds are easy to add.
 - **Skins are cosmetic, full stop.** A skin supplies `behind` / `body` /
   `features` art inside `drawPlayer`'s transform and nothing else — the hitbox
@@ -125,6 +142,14 @@ art is crisp on retina screens on desktop too.
   enemies own red, yellow, purple, blue, black and white, so stay out of those
   or the player loses track of their own square.
 - Every **1000** points: the **environment theme** shifts (sky, aurora, ice tint) and **fireworks** pop in the sky.
+- **The run ends at 10,000.** The scroll stops, the square is planted on solid
+  ice (a slab is laid under it if the winning step landed over a gap), it turns
+  to face you and smiles, and the sky fills with fireworks while raiders of
+  every kind rain down and shatter around it. A **THANK YOU FOR PLAYING**
+  banner drops in from above the canvas and bounces onto the floor beside the
+  square — and **only once it has landed** does `Space` start a new run, so the
+  finale can never be mashed through. An honest win always writes the best
+  score; a warped one never does.
 - Speed ramps up over the **first 20 seconds** (`280 → 400`) and then **stays
   flat for the rest of the run** — past roughly **680** points the scroll never
   gets faster again. Score is based on distance.
