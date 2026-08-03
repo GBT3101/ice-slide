@@ -371,6 +371,20 @@
   const LASER_BEAM = 0.1; // 100ms, as specified
   const LASER_RELOAD_MIN = 1.6;
   const LASER_RELOAD_MAX = 2.6;
+  /**
+   * The wind-up has to start the moment the raider clears the right edge, and
+   * that is not a detail. It gets only (W + 60 - PLAYER_X + 40) / (MAX_SPEED +
+   * approach) ≈ 1.5s on screen before it reaches the player, and the charge
+   * eats 0.9s of that; a full LASER_RELOAD_* up front left barely a quarter of
+   * lazer raiders ever firing a beam (measured over ~175 spawns). With the
+   * short first shot plus the solid-ice placement in findBeamFooting() it is
+   * about half - the rest fall into gaps mid-charge, same as any ground enemy.
+   *
+   * One telegraphed shot per pass is the whole enemy; LASER_RELOAD_* only
+   * matters if it somehow lives long enough for a second.
+   */
+  const LASER_FIRST_SHOT_MIN = 0.05;
+  const LASER_FIRST_SHOT_MAX = 0.25;
   const LASER_RANGE = 1500; // world units of beam, fired back down the lane
   const LASER_THICKNESS = 9;
 
@@ -1496,9 +1510,11 @@
 
     // Commandos drop in over the visible track instead of walking on from the
     // right, so they get a screen X well ahead of the player and a sky start.
-    const screenX = def.parachute ? rand(W * 0.5, W - 90) : 0;
+    // Far enough right that there is still reaction time after the chute is
+    // cut - it closes at the full scroll speed the moment it is on its feet.
+    const screenX = def.parachute ? rand(W * 0.62, W - 90) : 0;
     // Spawn ahead of the player (off-screen right), approach from opposite direction
-    const worldX = def.parachute ? distance + screenX : distance + W + rand(40, 160);
+    let worldX = def.parachute ? distance + screenX : distance + W + rand(40, 160);
 
     // Flyers cruise at altitude and never touch the ice; the rest prefer a slab
     let y;
@@ -1509,14 +1525,19 @@
       const hi = typeId === EnemyKind.ULTIMATE ? ULTIMATE_HOVER_MAX : FLY_HOVER_MAX;
       y = GROUND_Y - size - rand(lo, hi);
     } else {
-      y = GROUND_Y - size;
-      for (const p of platforms) {
-        if (p.y < GROUND_Y - 1) continue;
-        if (worldX >= p.x + 10 && worldX <= p.x + p.w - size - 10) {
-          y = p.y - size;
-          break;
+      let slab = groundSlabUnder(worldX, size);
+      // A lazer raider needs to outlive its own wind-up. Dropped over a gap it
+      // is off the bottom of the screen in about a third of a second - long
+      // before the 0.9s charge lands - so it gets walked back onto solid ice,
+      // near the trailing edge of a slab it can spend the whole charge on.
+      if (!slab && def.beam) {
+        const placed = findBeamFooting(size);
+        if (placed) {
+          worldX = placed.x;
+          slab = placed.slab;
         }
       }
+      y = slab ? slab.y - size : GROUND_Y - size;
     }
 
     enemies.push({
@@ -1533,7 +1554,7 @@
       // Desync spike cycles so a cluster doesn't pulse in lockstep
       spikeT: def.spikes === "toggle" ? Math.random() * SPIKE_CYCLE : 0,
       // Lazer: seconds until the wind-up starts, then charge → 100ms beam
-      laserCd: def.beam ? rand(0.5, LASER_RELOAD_MAX) : 0,
+      laserCd: def.beam ? rand(LASER_FIRST_SHOT_MIN, LASER_FIRST_SHOT_MAX) : 0,
       chargeT: 0,
       beamT: 0,
       // Commando: holds this screen X until the chute is cut on landing
@@ -1542,6 +1563,40 @@
       // Ice raider: how far the skid streak trails behind it, 0..1
       skid: 0,
     });
+  }
+
+  /** The ground slab an enemy of `size` would stand on at worldX, or null. */
+  function groundSlabUnder(worldX, size) {
+    for (const p of platforms) {
+      if (p.y < GROUND_Y - 1) continue;
+      if (worldX >= p.x + 10 && worldX <= p.x + p.w - size - 10) return p;
+    }
+    return null;
+  }
+
+  /**
+   * Pick a spot in the spawn band that a lazer raider can actually finish a
+   * charge on: the right-hand end of a slab inside the band, so the whole
+   * wind-up is spent walking across ice rather than off the edge of it.
+   */
+  function findBeamFooting(size) {
+    const from = distance + W + 20;
+    const to = distance + W + 520;
+    let best = null;
+    for (const p of platforms) {
+      if (p.y < GROUND_Y - 1 || p.isBridge) continue;
+      const right = p.x + p.w - size - 12;
+      const left = p.x + 10;
+      if (right < from || left > to) continue;
+      if (right - left < size) continue; // too narrow to stand on
+      const x = Math.max(left, Math.min(right, to));
+      if (x < from) continue;
+      // Pick the slab that leaves the most ice to its left: the raider spends
+      // the whole charge walking that way, and running out of it means no beam.
+      const room = x - left;
+      if (!best || room > best.room) best = { x, slab: p, room };
+    }
+    return best;
   }
 
   function enemyCanShoot(e) {
