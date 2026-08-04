@@ -933,7 +933,7 @@
       name: "No Gaps",
       tag: "Solid ice",
       blurb:
-        "The ice never breaks. Not one hole the whole way down - spikes, crates and raiders still turn up.",
+        "No more abyss to fall into, ice is solid throughout the run",
     },
     {
       id: "dropper2",
@@ -941,7 +941,7 @@
       name: "Double Droppers",
       tag: "×2 chance",
       blurb:
-        "Twice as many yellow ? boxes come down the lane. Same equal-chance roll on every stomp.",
+        "Twice as many powerup droppers come down the lane.",
     },
     {
       id: "steel",
@@ -949,7 +949,7 @@
       name: "Made of Steel",
       tag: "10 hit points",
       blurb:
-        "Ten hit points of shell. Every bump cracks it a little and destroys whatever you hit. Gaps still end the run.",
+        "Ten hit points of shell. Every bump cracks it a little and destroys whatever you hit. Falling into the abyss still end the run.",
     },
     {
       id: "forevergun",
@@ -957,7 +957,7 @@
       name: "Forever Gun",
       tag: "Never expires",
       blurb:
-        "The blaster is in your hand from the first step to the last. Forever gun, forever fun.",
+        "Forever gun, forever fun.",
     },
     {
       id: "fly",
@@ -965,7 +965,7 @@
       name: "Fly",
       tag: "Always double",
       blurb:
-        "A second jump is always in your pocket - spend it mid-air and it's back the moment you land.",
+        "A second jump is always in your pocket",
     },
   ]) {
     SHOP_ORDER.push(def.id);

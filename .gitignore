@@ -1,1 +1,10 @@
 .DS_Store
+
+# Agent tooling — local only. This repo is served from its root by GitHub Pages,
+# so anything committed here is published to the public web. These are Capacitor
+# skills for the native port (../ice-slide-capacitor) and have nothing to do with
+# the browser game.
+.agents/
+.claude/
+skills-lock.json
+.xcodebuildmcp/
