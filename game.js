@@ -949,7 +949,7 @@
       name: "Made of Steel",
       tag: "10 hit points",
       blurb:
-        "Ten hit points of shell. Every bump cracks it a little and destroys whatever you hit. Falling into the abyss still end the run.",
+        "Ten hit points of shell. Every bump cracks it a little and destroys whatever you hit. Falling into the abyss still ends the run.",
     },
     {
       id: "forevergun",
