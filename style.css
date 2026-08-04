@@ -491,6 +491,13 @@ kbd {
   font-weight: 900;
 }
 
+/* Shop button: the gold of the milestone signs it sells */
+.btn-icon--shop {
+  background: linear-gradient(140deg, #ffd060 0%, #ffb457 55%, #d08020 100%);
+  color: #3a2000;
+  font-size: 0.72rem;
+}
+
 /* Skins button wears the player square instead of a glyph */
 .btn-icon--skin {
   background: linear-gradient(140deg, var(--player-lit) 0%, var(--player) 52%, #1faa68 100%);
@@ -1009,8 +1016,386 @@ kbd {
 }
 
 /* ══════════════════════════════════════════════════════════════
+   SHOP — FREE MODIFIERS
+   Another .modal variant, so it inherits the frosted card and the
+   scroll behaviour on short landscape. Two shelves: nine head-start
+   chips (mutually exclusive) and five full modification cards.
+   Every card carries its own --shop-accent, set by game.js from the
+   SHOP_DEFS entry, and that one variable drives glow and ring.
+   ══════════════════════════════════════════════════════════════ */
+.shop-card-panel {
+  width: min(900px, 100%);
+}
+
+/* The deal, stated before anything can be equipped */
+.shop-warn {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 16px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: rgba(255, 170, 60, 0.09);
+  border: 1px solid rgba(255, 170, 60, 0.34);
+  color: #ffd9a8;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.shop-warn strong {
+  color: #ffb457;
+  font-weight: 800;
+}
+
+.shop-warn-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 170, 60, 0.9);
+  color: #3a2000;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.shop-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px 0 2px;
+}
+
+.shop-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.shop-section-note {
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: rgba(168, 200, 230, 0.6);
+}
+
+/* ── Head-start chips ────────────────────────────────────────── */
+.shop-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
+  gap: 9px;
+}
+
+.shop-chip {
+  --shop-accent: #ffd060;
+  /* The wardrobe's equipped-glow keyframes read --skin-accent; alias it so
+     the shop can reuse that animation instead of duplicating it. */
+  --skin-accent: var(--shop-accent);
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 6px 4px 8px;
+  border-radius: 13px;
+  border: 1px solid rgba(94, 200, 255, 0.14);
+  background: linear-gradient(180deg, rgba(94, 200, 255, 0.05), rgba(6, 16, 28, 0.35));
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.4),
+    border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.shop-chip-canvas {
+  width: 64px;
+  height: 50px;
+}
+
+/* The tick only exists once the rung is taken */
+.shop-chip-tick {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--shop-accent);
+  color: #2a1c00;
+  font-size: 0.62rem;
+  font-weight: 900;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.2s ease, transform 0.24s cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+
+/* ── Modification cards ──────────────────────────────────────── */
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+  gap: 12px;
+}
+
+.shop-card {
+  --shop-accent: #5ec8ff;
+  --skin-accent: var(--shop-accent);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(94, 200, 255, 0.14);
+  background: linear-gradient(180deg, rgba(94, 200, 255, 0.06), rgba(6, 16, 28, 0.35));
+  color: var(--text);
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.4),
+    border-color 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
+}
+
+/* Accent wash, asleep until hover / equipped — same rule as the wardrobe */
+.shop-card::before {
+  content: "";
+  position: absolute;
+  inset: -40% -10% auto;
+  height: 120%;
+  background: radial-gradient(ellipse 55% 60% at 50% 30%, var(--shop-accent), transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+@media (hover: hover) {
+  .shop-card:hover,
+  .shop-chip:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--shop-accent) 55%, transparent);
+  }
+
+  .shop-card:hover::before {
+    opacity: 0.12;
+  }
+}
+
+.shop-card:active,
+.shop-chip:active {
+  transform: translateY(-1px) scale(0.985);
+}
+
+.shop-card:focus-visible,
+.shop-chip:focus-visible {
+  outline: 2px solid var(--shop-accent);
+  outline-offset: 2px;
+}
+
+.shop-card--on {
+  border-color: color-mix(in srgb, var(--shop-accent) 70%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--shop-accent) 35%, transparent),
+    0 14px 34px -14px var(--shop-accent);
+}
+
+.shop-card.shop-card--on::before {
+  opacity: 0.16;
+}
+
+.shop-chip.shop-card--on {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--shop-accent) 14%, transparent), rgba(6, 16, 28, 0.35));
+}
+
+.shop-chip.shop-card--on .shop-chip-tick {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.shop-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 84px;
+  border-radius: 13px;
+  background:
+    radial-gradient(ellipse 78% 62% at 50% 42%, rgba(94, 200, 255, 0.09), transparent 72%),
+    rgba(4, 12, 22, 0.5);
+  border: 1px solid rgba(94, 200, 255, 0.1);
+  overflow: hidden;
+}
+
+.shop-canvas {
+  position: relative;
+  z-index: 1;
+  width: 84px;
+  height: 84px;
+}
+
+.shop-meta {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.shop-name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.shop-tag {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--shop-accent);
+  background: color-mix(in srgb, var(--shop-accent) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--shop-accent) 38%, transparent);
+}
+
+.shop-blurb {
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.42;
+}
+
+.shop-state {
+  position: relative;
+  margin-top: auto;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid rgba(140, 215, 255, 0.28);
+  color: var(--muted);
+  transition: background 0.22s ease, color 0.22s ease, border-color 0.22s ease;
+}
+
+.shop-state-on {
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.shop-check {
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.shop-card--on .shop-state {
+  color: #04121c;
+  background: var(--shop-accent);
+  border-color: transparent;
+}
+
+.shop-card--on .shop-state-off {
+  display: none;
+}
+
+.shop-card--on .shop-state-on {
+  display: inline-flex;
+}
+
+/* ── Footer: the running tally of what this run has become ───── */
+.shop-foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#shop-summary {
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-summary--hot {
+  color: #ffb457;
+  font-weight: 700;
+}
+
+#btn-clear-shop:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
+}
+
+/* ── The badge that rides along with a modified run ──────────── */
+.forfun-badge {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 4;
+  display: none;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(8, 18, 30, 0.72);
+  border: 1px solid rgba(255, 170, 60, 0.42);
+  color: #ffcf95;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+body.is-running.is-modified .forfun-badge {
+  display: flex;
+}
+
+/* Fullscreen puts the score pill in that exact corner — sit under it. */
+body.is-fullscreen .forfun-badge {
+  top: calc(46px + env(safe-area-inset-top));
+  left: calc(12px + env(safe-area-inset-left));
+  font-size: 0.6rem;
+  padding: 4px 9px;
+}
+
+.forfun-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffb457;
+  box-shadow: 0 0 10px rgba(255, 180, 87, 0.9);
+  animation: forfun-pulse 1.6s ease-in-out infinite;
+}
+
+/* Same note, restated on the game-over panel */
+.msg-forfun {
+  display: inline-block;
+  margin-top: 8px;
+  color: #ffb457;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+/* ══════════════════════════════════════════════════════════════
    ANIMATION
    ══════════════════════════════════════════════════════════════ */
+@keyframes forfun-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
 @keyframes ice-shimmer {
   0%,
   62% {
@@ -1247,6 +1632,34 @@ kbd {
   animation-delay: 0s, 0.42s;
 }
 
+/* The shop borrows the wardrobe's entrance. Its shelves hold nine and five,
+   so the stagger is written as a step per position rather than one rule per
+   card — adding a shop item must not mean adding a line here. */
+.modal:not(.hidden) .shop-chip,
+.modal:not(.hidden) .shop-card {
+  animation: skin-card-in 0.4s cubic-bezier(0.22, 1.1, 0.36, 1) backwards;
+}
+
+.modal:not(.hidden) .shop-chip:nth-child(n + 1) { animation-delay: 0.08s; }
+.modal:not(.hidden) .shop-chip:nth-child(n + 4) { animation-delay: 0.13s; }
+.modal:not(.hidden) .shop-chip:nth-child(n + 7) { animation-delay: 0.18s; }
+.modal:not(.hidden) .shop-card:nth-child(n + 1) { animation-delay: 0.2s; }
+.modal:not(.hidden) .shop-card:nth-child(n + 3) { animation-delay: 0.26s; }
+.modal:not(.hidden) .shop-card:nth-child(n + 5) { animation-delay: 0.32s; }
+
+.modal:not(.hidden) .shop-card.shop-card--on {
+  animation:
+    skin-card-in 0.4s cubic-bezier(0.22, 1.1, 0.36, 1) backwards,
+    skin-equipped-glow 2.8s 0.5s ease-in-out infinite;
+}
+
+.modal:not(.hidden) .shop-card.shop-card--pop {
+  animation:
+    skin-equip-pop 0.42s cubic-bezier(0.22, 1.1, 0.36, 1),
+    skin-equipped-glow 2.8s ease-in-out infinite;
+  animation-delay: 0s, 0.42s;
+}
+
 /* ══════════════════════════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════════════════════════ */
@@ -1328,6 +1741,39 @@ kbd {
 
   .skin-blurb {
     font-size: 0.68rem;
+  }
+
+  .shop-chips {
+    grid-template-columns: repeat(auto-fit, minmax(66px, 1fr));
+    gap: 7px;
+  }
+
+  .shop-chip-canvas {
+    width: 56px;
+    height: 44px;
+  }
+
+  .shop-grid {
+    grid-template-columns: repeat(auto-fit, minmax(134px, 1fr));
+    gap: 9px;
+  }
+
+  .shop-stage {
+    height: 70px;
+  }
+
+  .shop-canvas {
+    width: 70px;
+    height: 70px;
+  }
+
+  .shop-blurb {
+    font-size: 0.68rem;
+  }
+
+  .shop-warn {
+    font-size: 0.78rem;
+    padding: 9px 11px;
   }
 }
 
@@ -1687,6 +2133,18 @@ body.is-touch .overlay {
     gap: 10px;
   }
 
+  /* Four buttons now, and the narrowest landscape phone is ~667px wide:
+     at the full-size padding they wrap onto a second row. Trim the sides
+     (not the height — these stay comfortable thumb targets). */
+  .menu-actions .btn {
+    padding: 12px 20px;
+    font-size: 0.85rem;
+  }
+
+  .menu-actions .btn-run {
+    padding: 12px 26px;
+  }
+
   .menu-hint {
     margin-top: 10px;
     font-size: 0.72rem;
@@ -1813,6 +2271,105 @@ body.is-touch .overlay {
   }
 
   .skin-state {
+    padding: 3px 9px;
+    font-size: 0.58rem;
+  }
+
+  /* Shop: fourteen items on a ~330px-tall viewport. The chips shrink to a
+     row of number plates, the cards drop their blurbs, and the card — not
+     the page — takes the scroll (see .modal-card above). */
+  .shop-warn {
+    margin-top: 10px;
+    padding: 7px 10px;
+    gap: 8px;
+    font-size: 0.72rem;
+    line-height: 1.4;
+  }
+
+  .shop-warn-icon {
+    width: 18px;
+    height: 18px;
+    font-size: 0.72rem;
+  }
+
+  .shop-body {
+    gap: 12px;
+    padding: 10px 0 2px;
+  }
+
+  .shop-section-title {
+    margin-bottom: 7px;
+    font-size: 0.66rem;
+  }
+
+  .shop-section-note {
+    font-size: 0.64rem;
+  }
+
+  .shop-chips {
+    grid-template-columns: repeat(9, 1fr);
+    gap: 5px;
+  }
+
+  .shop-chip {
+    padding: 3px 2px 4px;
+    border-radius: 10px;
+  }
+
+  /* height:auto keeps the canvas' own 64×50 aspect, so the sign never
+     stretches however narrow the nine columns get. */
+  .shop-chip-canvas {
+    width: 100%;
+    max-width: 64px;
+    height: auto;
+  }
+
+  .shop-chip-tick {
+    top: 2px;
+    right: 2px;
+    width: 13px;
+    height: 13px;
+    font-size: 0.52rem;
+  }
+
+  .shop-grid {
+    grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+    gap: 7px;
+  }
+
+  .shop-card {
+    gap: 5px;
+    padding: 7px 6px 8px;
+    border-radius: 12px;
+  }
+
+  .shop-stage {
+    height: 54px;
+  }
+
+  .shop-canvas {
+    width: 54px;
+    height: 54px;
+  }
+
+  .shop-blurb {
+    display: none;
+  }
+
+  .shop-meta {
+    gap: 4px;
+  }
+
+  .shop-name {
+    font-size: 0.76rem;
+  }
+
+  .shop-tag {
+    padding: 1px 7px;
+    font-size: 0.55rem;
+  }
+
+  .shop-state {
     padding: 3px 9px;
     font-size: 0.58rem;
   }

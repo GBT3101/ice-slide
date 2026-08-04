@@ -29,7 +29,7 @@
   <link rel="icon" href="favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-  <link rel="stylesheet" href="style.css?v=13" />
+  <link rel="stylesheet" href="style.css?v=14" />
 </head>
 <body>
   <div class="app">
@@ -84,6 +84,10 @@
               <span class="btn-icon btn-icon--skin" aria-hidden="true"></span>
               <span class="btn-label">Skins</span>
             </button>
+            <button id="btn-shop" class="btn btn-ghost" type="button">
+              <span class="btn-icon btn-icon--shop" aria-hidden="true">★</span>
+              <span class="btn-label">Shop</span>
+            </button>
           </div>
 
           <p class="menu-hint">
@@ -117,6 +121,11 @@
             <span class="k-touch">Tap anywhere to try again</span>
           </p>
         </div>
+      </div>
+
+      <!-- ── Practice-run badge (any shop item equipped) ───────────── -->
+      <div id="forfun-badge" class="forfun-badge" aria-hidden="true">
+        <span class="forfun-dot"></span>For fun · score off
       </div>
 
       <!-- ── Resume gate (shown after rotating back to landscape) ──── -->
@@ -231,6 +240,62 @@
     </div>
   </div>
 
+  <!-- ── Shop (free modifiers — and the score goes off) ──────────── -->
+  <div id="shop" class="modal modal--shop hidden" role="dialog" aria-modal="true"
+       aria-labelledby="shop-title" aria-hidden="true">
+    <div class="modal-card shop-card-panel" role="document">
+      <header class="modal-head">
+        <div>
+          <h2 id="shop-title">The Shop</h2>
+          <p class="modal-sub">Everything's free. Nothing here is fair.</p>
+        </div>
+        <button id="btn-close-shop" class="icon-btn" type="button" aria-label="Close shop">
+          <span aria-hidden="true">✕</span>
+        </button>
+      </header>
+
+      <p class="shop-warn" role="note">
+        <span class="shop-warn-icon" aria-hidden="true">!</span>
+        <span>
+          Equip anything in here and <strong>your score won't be counted</strong> —
+          no best, no record. It's just a run for fun.
+        </span>
+      </p>
+
+      <div class="shop-body">
+        <section class="shop-section">
+          <h3 class="shop-section-title">
+            Head start <span class="shop-section-note">pick one</span>
+          </h3>
+          <div class="shop-chips" id="shop-chips"></div>
+        </section>
+
+        <section class="shop-section">
+          <h3 class="shop-section-title">
+            Modifications <span class="shop-section-note">stack as many as you like</span>
+          </h3>
+          <div class="shop-grid" id="shop-grid"></div>
+        </section>
+      </div>
+
+      <footer class="modal-foot">
+        <div class="keyline">
+          <span id="shop-summary">Nothing equipped — your next run counts.</span>
+          <span class="k-pointer"><kbd>ESC</kbd> closes this</span>
+        </div>
+        <div class="shop-foot-actions">
+          <button id="btn-clear-shop" class="btn btn-ghost btn-ghost--sm" type="button">
+            <span class="btn-label">Clear all</span>
+          </button>
+          <button id="btn-run-shop" class="btn btn-run btn-run--sm" type="button">
+            <span class="btn-label">RUN!</span>
+            <span class="btn-sheen" aria-hidden="true"></span>
+          </button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
   <!-- ── Portrait gate — the whole game is a landscape experience ── -->
   <div id="rotate-gate" class="rotate-gate" aria-hidden="true">
     <div class="rotate-inner">
@@ -244,6 +309,6 @@
     </div>
   </div>
 
-  <script src="game.js?v=13"></script>
+  <script src="game.js?v=14"></script>
 </body>
 </html>

@@ -21,6 +21,7 @@
   const menuBestEl = document.getElementById("menu-best");
   const manual = document.getElementById("instructions");
   const skinsModal = document.getElementById("skins");
+  const shopModal = document.getElementById("shop");
   const hudMobile = document.getElementById("hud-mobile");
   const resumeGate = document.getElementById("resume-gate");
 
@@ -885,6 +886,168 @@
     ctx.fill();
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // SHOP (run modifiers — free, and they switch the score off)
+  // ──────────────────────────────────────────────────────────────
+  // HOW TO ADD A SHOP ITEM (for future agents):
+  //   1. Register an entry in SHOP_DEFS and add its id to SHOP_ORDER.
+  //      The Shop screen is generated straight from that table - card,
+  //      icon and copy - exactly like the manual and the wardrobe.
+  //   2. group: "start" items are a head start and are mutually exclusive
+  //      (one per run); "mod" items stack freely.
+  //   3. icon(S) paints the card tile with the game's own draw functions.
+  //      There is no second art path in this file and this is no exception.
+  //   4. Read it from gameplay with shopOn("id") - nothing outside this
+  //      block may touch shopEquipped directly.
+  //   5. Anything equipped turns the run into a practice run: startGame()
+  //      raises `warped`, which is the single flag that suppresses the
+  //      best-score write in both die() and winRun(). A new item needs no
+  //      extra wiring to be honest about that.
+  // ══════════════════════════════════════════════════════════════
+  const STEEL_HP = 10;
+
+  /** Head-start rungs - one card per 1,000 up to the last one before the end. */
+  const HEADSTART_STEPS = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000];
+
+  const SHOP_DEFS = {};
+  const SHOP_ORDER = [];
+
+  for (const value of HEADSTART_STEPS) {
+    const id = `start${value}`;
+    SHOP_ORDER.push(id);
+    SHOP_DEFS[id] = {
+      id,
+      group: "start",
+      headstart: value,
+      accent: "#ffd060",
+      name: value.toLocaleString("en-US"),
+      full: `Start at ${value.toLocaleString("en-US")}`,
+      blurb: `Drop in at the ${value.toLocaleString("en-US")} mark, at the speed the run would already be doing.`,
+    };
+  }
+
+  for (const def of [
+    {
+      id: "nogaps",
+      accent: "#7fdcff",
+      name: "No Gaps",
+      tag: "Solid ice",
+      blurb:
+        "The ice never breaks. Not one hole the whole way down - spikes, crates and raiders still turn up.",
+    },
+    {
+      id: "dropper2",
+      accent: "#ffc820",
+      name: "Double Droppers",
+      tag: "×2 chance",
+      blurb:
+        "Twice as many yellow ? boxes come down the lane. Same equal-chance roll on every stomp.",
+    },
+    {
+      id: "steel",
+      accent: "#c2ccd8",
+      name: "Made of Steel",
+      tag: "10 hit points",
+      blurb:
+        "Ten hit points of shell. Every bump cracks it a little and destroys whatever you hit. Gaps still end the run.",
+    },
+    {
+      id: "forevergun",
+      accent: "#ff9a4a",
+      name: "Forever Gun",
+      tag: "Never expires",
+      blurb:
+        "The blaster is in your hand from the first step to the last. Forever gun, forever fun.",
+    },
+    {
+      id: "fly",
+      accent: "#c8b4ff",
+      name: "Fly",
+      tag: "Always double",
+      blurb:
+        "A second jump is always in your pocket - spend it mid-air and it's back the moment you land.",
+    },
+  ]) {
+    SHOP_ORDER.push(def.id);
+    SHOP_DEFS[def.id] = { ...def, group: "mod" };
+  }
+
+  const SHOP_STORAGE_KEY = "iceSlideShop";
+
+  /**
+   * Ids the player has equipped. Membership is validated against SHOP_ORDER,
+   * not SHOP_DEFS - a hand-edited "toString" in storage would otherwise pass
+   * a plain `in` check and hand the loadout a prototype method.
+   */
+  const shopEquipped = new Set(loadShopLoadout());
+
+  function loadShopLoadout() {
+    let ids = [];
+    try {
+      const raw = JSON.parse(localStorage.getItem(SHOP_STORAGE_KEY) || "[]");
+      if (Array.isArray(raw)) ids = raw.filter((id) => SHOP_ORDER.includes(id));
+    } catch (err) {
+      /* corrupt or unreadable - start the shop empty */
+    }
+    // Storage could carry two head starts; the run can only honour one.
+    let seenStart = false;
+    return ids.filter((id) => {
+      if (SHOP_DEFS[id].group !== "start") return true;
+      if (seenStart) return false;
+      seenStart = true;
+      return true;
+    });
+  }
+
+  function saveShopLoadout() {
+    try {
+      localStorage.setItem(SHOP_STORAGE_KEY, JSON.stringify([...shopEquipped]));
+    } catch (err) {
+      /* private browsing - the loadout just won't survive a reload */
+    }
+  }
+
+  /** The only way gameplay is allowed to ask about the shop. */
+  function shopOn(id) {
+    return shopEquipped.has(id);
+  }
+
+  /** True when the run is modified, i.e. when the score must not count. */
+  function shopModified() {
+    return shopEquipped.size > 0;
+  }
+
+  /** The equipped head start in points, or 0 for an honest opening. */
+  function shopHeadstart() {
+    for (const id of shopEquipped) {
+      const def = SHOP_DEFS[id];
+      if (def && def.group === "start") return def.headstart;
+    }
+    return 0;
+  }
+
+  function toggleShopItem(id) {
+    const def = SHOP_DEFS[id];
+    if (!def) return;
+    if (shopEquipped.has(id)) {
+      shopEquipped.delete(id);
+    } else {
+      // One head start per run - taking a new rung drops the old one.
+      if (def.group === "start") {
+        for (const other of [...shopEquipped]) {
+          if (SHOP_DEFS[other].group === "start") shopEquipped.delete(other);
+        }
+      }
+      shopEquipped.add(id);
+    }
+    saveShopLoadout();
+  }
+
+  function clearShopLoadout() {
+    shopEquipped.clear();
+    saveShopLoadout();
+  }
+
   // ── Environment themes (cycle every 1000 pts) ─────────────────
   const THEMES = [
     {
@@ -995,6 +1158,15 @@
 
   /** Brief invulnerability after a shield pop so the same hazard doesn't re-kill. */
   let hitInvuln = 0;
+
+  /**
+   * Made of Steel (shop): hit points left in the shell, 0 when the mod is off.
+   * Deliberately not a powerup - warpToScore() clears powerups mid-run and a
+   * shop mod has to outlive that.
+   */
+  let steelHp = 0;
+  /** Seconds of white flash left on the shell after a crack. */
+  let steelFlash = 0;
 
   let themeIndex = 0;
   let themeBlend = 1; // 0..1 blend into current theme
@@ -1179,9 +1351,9 @@
     jumpReleased = false;
   }
 
-  /** A front-end modal (manual or wardrobe) owns the screen right now. */
+  /** A front-end modal (manual, wardrobe or shop) owns the screen right now. */
   function inFrontEndModal() {
-    return menuView === "instructions" || menuView === "skins";
+    return menuView === "instructions" || menuView === "skins" || menuView === "shop";
   }
 
   function onJumpDown(e) {
@@ -1245,6 +1417,9 @@
       } else if (menuView === "skins") {
         e.preventDefault();
         closeSkins();
+      } else if (menuView === "shop") {
+        e.preventDefault();
+        closeShop();
       }
       return;
     }
@@ -1296,6 +1471,8 @@
     bullets = [];
     fireworks = [];
     clearPowerups();
+    steelHp = 0; // the shop re-arms it in applyShopLoadout()
+    steelFlash = 0;
     distance = 0;
     runTime = 0;
     speed = BASE_SPEED;
@@ -1328,7 +1505,8 @@
     const gap = rand(MIN_GAP, MAX_GAP) + Math.min(40, runTime * 2);
     const platW = rand(MIN_PLATFORM, MAX_PLATFORM) - Math.min(80, runTime * 3);
     // Keyed off world X, not score, so a warped run still generates real gaps.
-    const gapFree = fromX < GAP_FREE_UNTIL_SCORE * SCORE_TO_DIST;
+    // The shop's No Gaps holds the opening runway's rule for the whole run.
+    const gapFree = shopOn("nogaps") || fromX < GAP_FREE_UNTIL_SCORE * SCORE_TO_DIST;
     const start = gapFree ? fromX : fromX + Math.max(MIN_GAP, gap);
     const width = Math.max(140, platW);
 
@@ -1378,6 +1556,25 @@
     return start + width;
   }
 
+  /**
+   * Cut the spent tail off a ground slab that runs behind the player.
+   * Gap-free stretches merge slab into slab (see spawnSegment), so with the
+   * shop's No Gaps equipped a single platform would otherwise reach 100,000
+   * units by the end of the run - and drawPlatforms walks its width in 48px
+   * steps every frame. Trimming keeps that walk bounded to one screen.
+   * Only the part already off the left edge is removed, so nothing the
+   * player can see, stand on or fall into ever changes.
+   */
+  function trimGroundBehind() {
+    const cut = distance - 300;
+    for (const p of platforms) {
+      if (p.isBridge || p.y < GROUND_Y - 1) continue;
+      if (p.x >= cut || p.x + p.w <= cut) continue;
+      p.w -= cut - p.x;
+      p.x = cut;
+    }
+  }
+
   /** The ground slab whose right edge lands exactly on x, if there is one. */
   function lastGroundPlatformEndingAt(x) {
     for (const p of platforms) {
@@ -1388,10 +1585,11 @@
   }
 
   function ensureWorld() {
-    // Drop platforms / obstacles that scrolled far left
-    platforms = platforms.filter((p) => p.x + p.w > -100);
-    obstacles = obstacles.filter((o) => o.x + o.w > -100);
+    // Drop platforms / obstacles that scrolled off the left of the screen
+    platforms = platforms.filter((p) => p.x + p.w > distance - 100);
+    obstacles = obstacles.filter((o) => o.x + o.w > distance - 100);
     signs = signs.filter((s) => s.x > distance - 200);
+    trimGroundBehind();
 
     let rightmost = platforms.reduce((m, p) => Math.max(m, p.x + p.w), 0);
     while (rightmost < distance + SPAWN_AHEAD) {
@@ -1488,14 +1686,24 @@
   }
 
   /** Weighted pick among enemy types unlocked at the current score. */
+  /**
+   * Spawn weight for this run. Computed rather than stored: the shop's
+   * Double Droppers must not leave a doubled weight behind in ENEMY_TYPES
+   * once it is unequipped.
+   */
+  function enemySpawnWeight(t) {
+    if (t.id === EnemyKind.DROPPER && shopOn("dropper2")) return t.spawnWeight * 2;
+    return t.spawnWeight;
+  }
+
   function pickEnemyType() {
     const unlocked = Object.values(ENEMY_TYPES).filter((t) => score >= t.unlockScore);
     if (!unlocked.length) return null;
     let total = 0;
-    for (const t of unlocked) total += t.spawnWeight;
+    for (const t of unlocked) total += enemySpawnWeight(t);
     let r = Math.random() * total;
     for (const t of unlocked) {
-      r -= t.spawnWeight;
+      r -= enemySpawnWeight(t);
       if (r <= 0) return t.id;
     }
     return unlocked[unlocked.length - 1].id;
@@ -1641,12 +1849,16 @@
     enemies.splice(index, 1);
   }
 
-  /** Shatter a crate under the player's feet. Mirrors stompEnemy's FX. */
-  function smashCrate(index, screenX) {
+  /**
+   * Shatter an ice hazard - a crate stomped from above, or anything a steel
+   * shell bumps into. Mirrors stompEnemy's FX.
+   */
+  function shatterObstacle(index, screenX) {
     const o = obstacles[index];
     if (!o) return;
     const cx = screenX + o.w / 2;
     const cy = o.y + o.h * 0.55;
+    const shard = o.type === "spike" ? "rgba(154, 208, 239," : "rgba(184, 216, 240,";
 
     for (let i = 0; i < 14; i++) {
       const ang = Math.random() * Math.PI * 2;
@@ -1659,7 +1871,7 @@
         life: rand(0.25, 0.55),
         max: 0.55,
         r: rand(2, 5),
-        color: Math.random() < 0.5 ? "rgba(184, 216, 240," : "rgba(74, 122, 152,",
+        color: Math.random() < 0.5 ? shard : "rgba(74, 122, 152,",
       });
     }
     spawnDust(cx, o.y + o.h);
@@ -1881,10 +2093,17 @@
     return "rgba(255, 220, 100,";
   }
 
-  /** Activate or refresh a powerup by id (see POWERUP_DEFS). */
-  function grantPowerup(id) {
+  /**
+   * Activate or refresh a powerup by id (see POWERUP_DEFS).
+   * opts.permanent - never ticks down (shop mods; remaining stays Infinity).
+   * opts.quiet     - skip the pickup sparkles, for grants the player didn't
+   *                  earn this instant (a Fly wing topped up on landing).
+   */
+  function grantPowerup(id, opts) {
     const def = POWERUP_DEFS[id];
     if (!def) return;
+    const permanent = Boolean(opts && opts.permanent);
+    const quiet = Boolean(opts && opts.quiet);
 
     if (def.exclusive) {
       for (const [otherId, other] of activePowerups) {
@@ -1896,19 +2115,23 @@
 
     const existing = activePowerups.get(id);
     if (existing) {
-      // Refresh timer on re-collect
-      existing.remaining = def.duration;
+      // Refresh timer on re-collect - but a permanent grant is never
+      // downgraded by one that happens to arrive out of a dropper.
+      if (permanent) existing.permanent = true;
+      existing.remaining = existing.permanent ? Infinity : def.duration;
       if (id === "gun") existing.fireCd = 0;
     } else {
       activePowerups.set(id, {
         id,
-        remaining: def.duration,
+        remaining: permanent ? Infinity : def.duration,
+        permanent,
         def,
         fireCd: id === "gun" ? 0.05 : 0,
       });
     }
 
     if (typeof def.onGrant === "function") def.onGrant();
+    if (quiet) return;
 
     // Pickup sparkles
     const cx = player.x + player.w / 2;
@@ -2019,6 +2242,25 @@
         r: rand(1.5, 3),
         color: "rgba(255, 200, 100,",
       });
+    }
+  }
+
+  /**
+   * Shop mods that hand out a powerup and then have to keep it there.
+   * Run every frame rather than granted once at the start: a dropper roll can
+   * refresh the gun, tryWingsJump() spends the wings, and warpToScore() wipes
+   * both. Topping up here means none of those paths need to know about the shop.
+   */
+  function enforceShopPowerups() {
+    if (shopOn("forevergun")) {
+      const gun = activePowerups.get("gun");
+      if (!gun) grantPowerup("gun", { permanent: true, quiet: true });
+      else if (!gun.permanent) grantPowerup("gun", { permanent: true, quiet: true });
+    }
+    // Fly is a double jump, not flight: the wing comes back on landing, so
+    // there is still exactly one extra jump per trip through the air.
+    if (shopOn("fly") && player.onGround && !hasPowerup("wings")) {
+      grantPowerup("wings", { permanent: true, quiet: true });
     }
   }
 
@@ -2228,12 +2470,57 @@
    * Route for all lethal contact hazards.
    * Returns true if the player died, false if absorbed / invulnerable.
    * Falling into the abyss should still call die() directly (not a "hit").
+   *
+   * `destroy` is the steel shell's half of the bargain: whatever was bumped
+   * into is wrecked by the impact. Callers that already remove the enemy /
+   * bullet on an absorbed hit can leave it out.
    */
-  function playerTakeHit(reason) {
+  function playerTakeHit(reason, destroy) {
     if (hitInvuln > 0) return false;
     if (tryAbsorbHit()) return false;
+    if (steelHp > 0) return steelTakeHit(destroy);
     die(reason);
     return true;
+  }
+
+  /**
+   * Made of Steel: the impact cracks the shell instead of the player, and
+   * takes whatever caused it with it. Returns true only on the hit that
+   * shatters the last plate.
+   */
+  function steelTakeHit(destroy) {
+    steelHp -= 1;
+    steelFlash = 0.35;
+    hitInvuln = 0.45; // one overlap must not chew through several plates
+    shake = Math.max(shake, 6);
+    spawnSteelSparks(steelHp <= 0);
+    if (typeof destroy === "function") destroy();
+
+    if (steelHp <= 0) {
+      die("Your steel shell finally shattered. Ten hits was all it had.");
+      return true;
+    }
+    return false;
+  }
+
+  function spawnSteelSparks(shattered) {
+    const cx = player.x + player.w / 2;
+    const cy = player.y + player.h / 2;
+    const n = shattered ? 22 : 12;
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const sp = rand(70, shattered ? 300 : 190);
+      particles.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp - 30,
+        life: rand(0.2, 0.5),
+        max: 0.5,
+        r: rand(1.5, 4),
+        color: Math.random() < 0.5 ? "rgba(210, 226, 240," : "rgba(255, 214, 140,",
+      });
+    }
   }
 
   function spawnShieldPop() {
@@ -2410,6 +2697,109 @@
     ctx.stroke();
 
     ctx.restore();
+  }
+
+  /**
+   * Made of Steel: riveted plating over whatever skin is equipped, a fresh
+   * crack for every plate lost, and a pip row so the player can count what's
+   * left without doing arithmetic on the cracks.
+   *
+   * Fixed crack geometry, revealed in order - random splinters would redraw
+   * themselves every frame and read as static rather than as damage.
+   */
+  const STEEL_CRACKS = [
+    [[-19, -5], [-9, -1], [-4, -11]],
+    [[19, 3], [9, 0], [4, 10]],
+    [[-3, -19], [-1, -8], [7, -4]],
+    [[2, 19], [0, 7], [-8, 3]],
+    [[-19, 9], [-10, 7], [-6, 15]],
+    [[19, -8], [10, -6], [5, -14]],
+    [[-14, -16], [-6, -8], [2, -12]],
+    [[15, 15], [6, 8], [-2, 13]],
+    [[-19, 0], [0, 2], [19, -2]],
+  ];
+
+  function drawSteelShell() {
+    const dmg = Math.min(STEEL_CRACKS.length, STEEL_HP - steelHp);
+    const cx = player.x + player.w / 2;
+    const cy = player.y + player.h / 2;
+    const w = player.w;
+    const h = player.h;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(player.rotation);
+    ctx.scale(player.squish, 2 - player.squish);
+
+    // Plating: a brushed rim over the body, never a solid fill - the skin
+    // underneath still has to be recognisable through it.
+    const plate = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+    plate.addColorStop(0, "rgba(238, 246, 255, 0.9)");
+    plate.addColorStop(0.45, "rgba(150, 168, 188, 0.75)");
+    plate.addColorStop(1, "rgba(70, 86, 104, 0.85)");
+    roundRect(-w / 2 - 2, -h / 2 - 2, w + 4, h + 4, 7);
+    ctx.strokeStyle = plate;
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    // Faint metal wash so the square reads as clad, not merely outlined
+    roundRect(-w / 2 - 1, -h / 2 - 1, w + 2, h + 2, 6);
+    ctx.fillStyle = "rgba(176, 196, 216, 0.18)";
+    ctx.fill();
+
+    // Corner rivets
+    ctx.fillStyle = "rgba(228, 240, 252, 0.85)";
+    for (const [rx, ry] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      ctx.beginPath();
+      ctx.arc(rx * (w / 2 - 3), ry * (h / 2 - 3), 1.9, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Cracks earned so far
+    ctx.strokeStyle = "rgba(18, 30, 44, 0.75)";
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = "round";
+    for (let i = 0; i < dmg; i++) {
+      const path = STEEL_CRACKS[i];
+      ctx.beginPath();
+      ctx.moveTo(path[0][0], path[0][1]);
+      for (let j = 1; j < path.length; j++) ctx.lineTo(path[j][0], path[j][1]);
+      ctx.stroke();
+    }
+
+    // The impact itself - a white bloom that fades over ~a third of a second
+    if (steelFlash > 0) {
+      ctx.globalAlpha = Math.min(1, steelFlash / 0.35) * 0.65;
+      roundRect(-w / 2 - 2, -h / 2 - 2, w + 4, h + 4, 7);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+
+    drawSteelPips();
+  }
+
+  /** One pip per plate left, floating over the square. Screen space: the
+   *  count has to stay readable while the square is spinning through the air. */
+  function drawSteelPips() {
+    const pipW = 4;
+    const gap = 2;
+    const total = STEEL_HP * pipW + (STEEL_HP - 1) * gap;
+    const x0 = player.x + player.w / 2 - total / 2;
+    const y = player.y - 13;
+
+    for (let i = 0; i < STEEL_HP; i++) {
+      const x = x0 + i * (pipW + gap);
+      const alive = i < steelHp;
+      ctx.fillStyle = alive
+        ? steelHp <= 3
+          ? "rgba(255, 150, 120, 0.95)"
+          : "rgba(206, 226, 246, 0.95)"
+        : "rgba(120, 140, 160, 0.28)";
+      ctx.fillRect(x, y, pipW, 5);
+    }
   }
 
   function shootAtPlayer(e) {
@@ -2603,7 +2993,9 @@
   function startGame() {
     resetWorld();
     resetPlayer();
-    warped = false;
+    // A shop loadout is the same promise the warp keys make: this run is for
+    // fun, and it will not be written to the saved best.
+    warped = shopModified();
     state = State.PLAYING;
     awaitingResume = false;
     releaseJump();
@@ -2611,7 +3003,26 @@
     overlay.classList.add("hidden");
     setScoreText(0);
     setRunning(true);
+    applyShopLoadout();
     syncResumeGate();
+  }
+
+  /**
+   * Hand the run whatever was equipped in the shop. Order matters: the head
+   * start rebuilds the world and clears powerups, so the permanent ones are
+   * granted after it, never before.
+   */
+  function applyShopLoadout() {
+    document.body.classList.toggle("is-modified", shopModified());
+    if (!shopModified()) return;
+
+    const head = shopHeadstart();
+    if (head) warpToScore(head); // safe: state is already PLAYING
+
+    steelHp = shopOn("steel") ? STEEL_HP : 0;
+    steelFlash = 0;
+    if (shopOn("forevergun")) grantPowerup("gun", { permanent: true });
+    if (shopOn("fly")) grantPowerup("wings", { permanent: true });
   }
 
   /**
@@ -2720,7 +3131,10 @@
     overlayTitle.textContent = "You fell!";
     overlayMsg.innerHTML =
       `${reason}<br><br>Score: <strong style="color:#5ec8ff">${Math.floor(score)}</strong>` +
-      (!warped && score >= best && score > 0 ? " - new best!" : "");
+      (!warped && score >= best && score > 0 ? " - new best!" : "") +
+      (shopModified()
+        ? `<br><span class="msg-forfun">Shop run - the score doesn't count.</span>`
+        : "");
     gameWrap.classList.add("game-wrap--menu");
     overlay.classList.remove("hidden");
   }
@@ -2927,7 +3341,9 @@
     updateEnemies(dt);
     updateBullets(dt);
     updatePowerups(dt); // gun may spawn friendly bullets this frame
+    enforceShopPowerups(); // shop mods top their powerups back up
     resolveFriendlyBullets();
+    if (steelFlash > 0) steelFlash = Math.max(0, steelFlash - dt);
     if (hitInvuln > 0) hitInvuln = Math.max(0, hitInvuln - dt);
 
     // Jump buffer / coyote
@@ -3046,7 +3462,7 @@
 
         if (overlappingX && wasAbove && landingOnTop) {
           const top = o.y;
-          smashCrate(i, ox);
+          shatterObstacle(i, ox);
           applyStompBounce(top);
           stompedThisFrame = true;
           break;
@@ -3102,12 +3518,21 @@
           feet <= o.y + o.h * 0.45;
         if (mostlyAbove) {
           const top = o.y;
-          smashCrate(oi, ox);
+          shatterObstacle(oi, ox);
           applyStompBounce(top);
           stompedThisFrame = true;
           continue;
         }
-        if (playerTakeHit("You hit an ice hazard. Watch the spikes and crates!")) return;
+        // The loop runs backwards, so a steel shell can splice the hazard it
+        // just wrecked out from under itself without disturbing the walk.
+        if (
+          playerTakeHit(
+            "You hit an ice hazard. Watch the spikes and crates!",
+            () => shatterObstacle(oi, ox)
+          )
+        ) {
+          return;
+        }
         // Absorbed: nudge past this obstacle so we don't re-hit same frame
         // (obstacle still solid; brief invuln via powerup removal is enough)
       }
@@ -3282,6 +3707,7 @@
       drawVictoryTitle();
     }
     drawPlayer();
+    if (steelHp > 0) drawSteelShell();
     drawPowerupOverlays();
     drawParticles();
     drawSnow();
@@ -4851,6 +5277,312 @@
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
   }
 
+  // ── Shop screen (cards painted by the real game art) ──────────
+  const SHOP_TILE = 84; // CSS px - matches .shop-stage in style.css
+  const SHOP_CHIP_W = 64; // matches .shop-chip-canvas
+  const SHOP_CHIP_H = 50;
+
+  /** @type {{ctx:CanvasRenderingContext2D, id:string, card:HTMLElement,
+   *   w:number, h:number}[]} */
+  const shopCards = [];
+  let shopSummaryEl = null;
+
+  function buildShop() {
+    const chips = document.getElementById("shop-chips");
+    const grid = document.getElementById("shop-grid");
+    if (!chips || !grid) return;
+    shopSummaryEl = document.getElementById("shop-summary");
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+
+    for (const id of SHOP_ORDER) {
+      const def = SHOP_DEFS[id];
+      const isStart = def.group === "start";
+      const w = isStart ? SHOP_CHIP_W : SHOP_TILE;
+      const h = isStart ? SHOP_CHIP_H : SHOP_TILE;
+
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = isStart ? "shop-chip" : "shop-card";
+      card.dataset.item = id;
+      card.style.setProperty("--shop-accent", def.accent);
+
+      const stage = document.createElement("span");
+      stage.className = isStart ? "shop-chip-stage" : "shop-stage";
+      stage.setAttribute("aria-hidden", "true");
+
+      const cv = document.createElement("canvas");
+      cv.className = isStart ? "shop-chip-canvas" : "shop-canvas";
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(h * dpr);
+      const cctx = cv.getContext("2d");
+      cctx.scale(dpr, dpr); // draw in CSS pixels, render crisp on retina
+      stage.append(cv);
+
+      if (isStart) {
+        const tick = document.createElement("span");
+        tick.className = "shop-chip-tick";
+        tick.setAttribute("aria-hidden", "true");
+        tick.textContent = "✓";
+        card.append(stage, tick);
+      } else {
+        const meta = document.createElement("span");
+        meta.className = "shop-meta";
+        meta.innerHTML =
+          `<span class="shop-name"></span>` +
+          `<span class="shop-tag"></span>` +
+          `<span class="shop-blurb"></span>`;
+        meta.querySelector(".shop-name").textContent = def.name;
+        meta.querySelector(".shop-tag").textContent = def.tag;
+        meta.querySelector(".shop-blurb").textContent = def.blurb;
+
+        const stateEl = document.createElement("span");
+        stateEl.className = "shop-state";
+        stateEl.innerHTML =
+          `<span class="shop-state-off">Equip</span>` +
+          `<span class="shop-state-on"><span class="shop-check" aria-hidden="true">✓</span>Equipped</span>`;
+
+        card.append(stage, meta, stateEl);
+      }
+
+      card.addEventListener("click", () => pickShopItem(id, card));
+      (isStart ? chips : grid).append(card);
+      shopCards.push({ ctx: cctx, id, card, w, h });
+    }
+
+    syncShopCards();
+  }
+
+  function pickShopItem(id, card) {
+    toggleShopItem(id);
+    syncShopCards();
+    // Only ever one popped card, exactly as in the wardrobe: the class
+    // carries the pop, so a stale one would leave two cards bouncing.
+    for (const entry of shopCards) entry.card.classList.remove("shop-card--pop");
+    if (shopOn(id)) {
+      void card.offsetWidth; // reflow, so re-picking the same card pops again
+      card.classList.add("shop-card--pop");
+    }
+  }
+
+  function syncShopCards() {
+    for (const entry of shopCards) {
+      const def = SHOP_DEFS[entry.id];
+      const on = shopOn(entry.id);
+      entry.card.classList.toggle("shop-card--on", on);
+      entry.card.setAttribute("aria-pressed", on ? "true" : "false");
+      entry.card.setAttribute(
+        "aria-label",
+        `${def.full || def.name}${on ? " — equipped" : ""}`
+      );
+    }
+
+    const clear = document.getElementById("btn-clear-shop");
+    if (clear) clear.disabled = !shopModified();
+
+    if (!shopSummaryEl) return;
+    const n = shopEquipped.size;
+    shopSummaryEl.textContent = n
+      ? `${n} equipped — this run is just for fun.`
+      : "Nothing equipped — your next run counts.";
+    shopSummaryEl.classList.toggle("shop-summary--hot", n > 0);
+  }
+
+  function drawShopPreviews() {
+    for (const entry of shopCards) {
+      withCtx(entry.ctx, () => drawShopIcon(entry.id, entry.w, entry.h));
+    }
+  }
+
+  function drawShopIcon(id, w, h) {
+    ctx.clearRect(0, 0, w, h);
+    const def = SHOP_DEFS[id];
+    if (!def) return;
+
+    if (def.group === "start") {
+      drawHeadstartIcon(def.headstart, w, h);
+      return;
+    }
+    if (id === "nogaps") drawNoGapsIcon(w);
+    else if (id === "dropper2") drawDoubleDropperIcon(w);
+    else if (id === "steel") drawSteelIcon(w);
+    else if (id === "forevergun") drawForeverIcon(w, "gun");
+    else if (id === "fly") drawForeverIcon(w, "wings");
+  }
+
+  /** A milestone sign, planted - the same board the run plants every 100 pts. */
+  function drawHeadstartIcon(value, w, h) {
+    const cx = w / 2;
+    const base = h - 5;
+    const boardH = 25;
+    const boardW = 52;
+    const bob = Math.sin(performance.now() / 700) * 1;
+
+    // Shadow on the ice
+    ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+    ctx.beginPath();
+    ctx.ellipse(cx + 1, base + 1, 11, 3.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Post
+    const post = ctx.createLinearGradient(cx - 3, base - 30, cx + 3, base);
+    post.addColorStop(0, "#8b6914");
+    post.addColorStop(1, "#5a4010");
+    ctx.fillStyle = post;
+    ctx.fillRect(cx - 2.5, base - 30, 5, 30);
+
+    // Ice crust where it's driven in
+    ctx.fillStyle = "rgba(200, 230, 255, 0.7)";
+    ctx.beginPath();
+    ctx.ellipse(cx, base, 9, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    drawSignBoard(cx, base - 30 - boardH + 6 + bob, boardW, boardH, value, true);
+  }
+
+  /**
+   * The exact opposite of the manual's "gap" tile: where that one is two
+   * ledges with the void between them, this is one ledge running clean off
+   * both edges. Nothing is added in the middle on purpose - any marker there
+   * reads as an object standing on the ice rather than as unbroken ice.
+   */
+  function drawNoGapsIcon(S) {
+    const ledgeH = 21;
+    const groundY = S - ledgeH - 4;
+    const t = performance.now();
+
+    drawManualLedge(-4, groundY, S + 8, ledgeH);
+
+    // Frost glints tracking across the surface, so the slab still breathes
+    for (let i = 0; i < 3; i++) {
+      const tw = 0.35 + 0.65 * Math.abs(Math.sin(t / 520 + i * 2.1));
+      const gx = S * (0.14 + i * 0.36);
+      drawSparkStar(gx, groundY - 4, 3.2 * tw, `rgba(220, 246, 255, ${0.25 + tw * 0.45})`);
+    }
+
+    // The square, sliding straight across it
+    const saved = {
+      x: player.x, y: player.y, squish: player.squish,
+      rotation: player.rotation, dead: player.dead,
+    };
+    ctx.save();
+    ctx.translate(S / 2, groundY - 12);
+    ctx.scale(0.62, 0.62);
+    player.x = -PLAYER_SIZE / 2;
+    player.y = -PLAYER_SIZE / 2;
+    player.squish = 1;
+    player.rotation = 0;
+    player.dead = false;
+    drawPlayer();
+    ctx.restore();
+    Object.assign(player, saved);
+  }
+
+  /** Two ? boxes, because that is exactly what the mod does. */
+  function drawDoubleDropperIcon(S) {
+    const t = performance.now();
+    const make = (phase) => ({
+      w: ENEMY_SIZE,
+      h: ENEMY_SIZE,
+      type: EnemyKind.DROPPER,
+      bob: t / 400 + phase,
+      spikeT: 0,
+      chargeT: 0,
+      beamT: 0,
+      skid: 1,
+    });
+
+    // Back box first, a shade smaller so the pair reads as depth
+    ctx.save();
+    ctx.globalAlpha = 0.75;
+    ctx.translate(S * 0.62, S * 0.4 + Math.sin(t / 520) * 2);
+    ctx.scale(0.56, 0.56);
+    drawEnemyBody(make(1.4));
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(S * 0.4, S * 0.56 + Math.sin(t / 430) * 2);
+    ctx.scale(0.72, 0.72);
+    drawEnemyBody(make(0));
+    ctx.restore();
+
+    // ×2 stamp
+    ctx.fillStyle = "rgba(255, 200, 32, 0.95)";
+    ctx.font = "bold 15px system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("×2", S - 5, S - 4);
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
+  }
+
+  /** The square in its shell - the live drawSteelShell, mid-damage. */
+  function drawSteelIcon(S) {
+    const saved = {
+      x: player.x, y: player.y, squish: player.squish,
+      rotation: player.rotation, dead: player.dead,
+    };
+    const savedHp = steelHp;
+    const savedFlash = steelFlash;
+    const bob = Math.sin(performance.now() / 600) * 1.5;
+
+    steelHp = 7; // three cracks: enough to show what a hit costs
+    steelFlash = 0;
+    player.x = (S - PLAYER_SIZE) / 2;
+    player.y = (S - PLAYER_SIZE) / 2 + 4 + bob;
+    player.squish = 1;
+    player.rotation = 0;
+    player.dead = false;
+
+    drawPlayer();
+    drawSteelShell();
+
+    steelHp = savedHp;
+    steelFlash = savedFlash;
+    Object.assign(player, saved);
+  }
+
+  /** A powerup that never runs out: the sprite wearing it, plus the ∞. */
+  function drawForeverIcon(S, id) {
+    const def = POWERUP_DEFS[id];
+    if (!def) return;
+
+    const saved = {
+      x: player.x, y: player.y, squish: player.squish,
+      rotation: player.rotation, dead: player.dead,
+    };
+    const bob = Math.sin(performance.now() / 600) * 1.5;
+
+    player.x = (S - PLAYER_SIZE) / 2 - (id === "gun" ? 7 : 0);
+    player.y = (S - PLAYER_SIZE) / 2 + bob;
+    player.squish = 1;
+    player.rotation = 0;
+    player.dead = false;
+
+    ctx.save();
+    ctx.translate(S / 2, S / 2);
+    ctx.scale(0.88, 0.88);
+    ctx.translate(-S / 2, -S / 2);
+    drawPlayer();
+    // Infinity keeps the overlay solid - these two never blink out.
+    const fake = { id, remaining: Infinity, def };
+    if (id === "gun") drawGunOverlay(fake);
+    else drawWingsOverlay(fake);
+    ctx.restore();
+
+    Object.assign(player, saved);
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+    ctx.font = "bold 17px system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("∞", S - 5, S - 3);
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
+  }
+
   // ── Manual icon art (reuses the in-game draw functions) ───────
   function drawManualIcons() {
     for (const icon of manualIcons) {
@@ -5116,6 +5848,7 @@
     overlay.classList.add("hidden");
     closeManual(true);
     closeSkins(true);
+    closeShop(true);
     gameWrap.classList.add("game-wrap--menu");
     menuScreen.classList.remove("hidden");
     blurUi();
@@ -5129,6 +5862,8 @@
     manual.setAttribute("aria-hidden", "true");
     skinsModal.classList.add("hidden");
     skinsModal.setAttribute("aria-hidden", "true");
+    shopModal.classList.add("hidden");
+    shopModal.setAttribute("aria-hidden", "true");
     gameWrap.classList.remove("game-wrap--menu");
     blurUi();
   }
@@ -5176,6 +5911,28 @@
     if (skins) skins.focus();
   }
 
+  function openShop() {
+    if (menuView !== "home") return;
+    menuView = "shop";
+    shopModal.classList.remove("hidden");
+    shopModal.setAttribute("aria-hidden", "false");
+    drawShopPreviews();
+    const close = document.getElementById("btn-close-shop");
+    if (close) close.focus();
+  }
+
+  function closeShop(silent) {
+    if (menuView !== "shop" && !silent) return;
+    shopModal.classList.add("hidden");
+    shopModal.setAttribute("aria-hidden", "true");
+    // Drop the equip pop, or the next open skips that card's entrance stagger.
+    for (const entry of shopCards) entry.card.classList.remove("shop-card--pop");
+    if (silent) return;
+    menuView = "home";
+    const shop = document.getElementById("btn-shop");
+    if (shop) shop.focus();
+  }
+
   function bindFrontEnd() {
     document.getElementById("btn-run").addEventListener("click", startGame);
     document.getElementById("btn-run-manual").addEventListener("click", startGame);
@@ -5186,12 +5943,23 @@
     document.getElementById("btn-skins").addEventListener("click", openSkins);
     document.getElementById("btn-run-skins").addEventListener("click", startGame);
     document.getElementById("btn-close-skins").addEventListener("click", () => closeSkins());
+    document.getElementById("btn-shop").addEventListener("click", openShop);
+    document.getElementById("btn-run-shop").addEventListener("click", startGame);
+    document.getElementById("btn-close-shop").addEventListener("click", () => closeShop());
+    document.getElementById("btn-clear-shop").addEventListener("click", () => {
+      clearShopLoadout();
+      syncShopCards();
+      for (const entry of shopCards) entry.card.classList.remove("shop-card--pop");
+    });
     // Tap/click the dimmed backdrop (not the card) to dismiss
     manual.addEventListener("pointerdown", (e) => {
       if (e.target === manual) closeManual();
     });
     skinsModal.addEventListener("pointerdown", (e) => {
       if (e.target === skinsModal) closeSkins();
+    });
+    shopModal.addEventListener("pointerdown", (e) => {
+      if (e.target === shopModal) closeShop();
     });
 
     // The game-over panel promises "tap anywhere" - but #overlay sits above
@@ -5222,6 +5990,7 @@
     draw();
     if (menuView === "instructions") drawManualIcons();
     else if (menuView === "skins") drawSkinPreviews();
+    else if (menuView === "shop") drawShopPreviews();
     requestAnimationFrame(frame);
   }
 
@@ -5233,6 +6002,7 @@
   player.y = GROUND_Y - PLAYER_SIZE;
   buildManual();
   buildSkins();
+  buildShop();
   bindFrontEnd();
   setBestText(best);
   gameWrap.classList.add("game-wrap--menu");

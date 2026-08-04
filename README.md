@@ -34,7 +34,7 @@ Then open [http://localhost:8000](http://localhost:8000).
 |-------------|---------------|
 | `Space` / click / tap | Jump (or start / restart) |
 | `R`         | Restart anytime |
-| `Esc`       | Close the Instructions or Skins screen |
+| `Esc`       | Close the Instructions, Skins or Shop screen |
 
 ### Testing shortcut (desktop, undocumented in-game)
 
@@ -76,8 +76,8 @@ art is crisp on retina screens on desktop too.
 
 - **Entrance screen** — a DOM layer over the canvas, so the live idle world
   (sky, aurora, mountains, drifting snow, the bobbing square) is the moving
-  backdrop rather than a static image. Three actions: **RUN!**,
-  **Instructions** and **Skins**.
+  backdrop rather than a static image. Four actions: **RUN!**,
+  **Instructions**, **Skins** and **Shop**.
 - **Instructions ("Field Manual")** — enemies/hazards and powerups side by
   side. The enemy rows come from `ENEMY_TYPES` (plus `HAZARD_INFO` for the
   static level hazards) and the powerup rows are the dropper pool,
@@ -91,6 +91,13 @@ art is crisp on retina screens on desktop too.
   canvas by `drawPlayer` with that skin temporarily active (`previewSkin`), so
   a card can never show something the run won't. The choice persists in
   `localStorage` under `iceSlideSkin`.
+- **Shop** — free run modifiers, generated from `SHOP_DEFS` / `SHOP_ORDER`,
+  with a warning at the top stating the deal: **equip anything and the score
+  stops counting**. Two shelves — nine mutually exclusive **head start** chips
+  (1,000 … 9,000) and five stacking **modifications**. Every tile is painted by
+  the game's own art (the milestone sign board, the dropper sprite, the player
+  wearing the shell / blaster / wings), same rule as the manual and the
+  wardrobe. The loadout persists in `localStorage` under `iceSlideShop`.
 - **Game over** — `RUN AGAIN` restarts, `Menu` returns to the entrance screen.
 
 ## Gameplay
@@ -134,7 +141,33 @@ art is crisp on retina screens on desktop too.
   One that drifts over a gap simply rides its chute into the abyss.
 - After **9000** points: the **Ultimate Raider** — golden, airborne, armed, with
   burning white eyes and a radiating aura. Jump the shots and land on its crown.
-- Enemies, powerups and skins use registry tables in `game.js` (`ENEMY_TYPES`, `POWERUP_DEFS`, `POWERUP_DROP_IDS`, `SKIN_DEFS`) so new kinds are easy to add.
+- **The Shop (free, and it switches the score off).** Anything equipped makes
+  the run a practice run: `startGame()` raises the same `warped` flag the warp
+  keys use, which is the one thing that suppresses the best-score write in both
+  `die()` and `winRun()`. A **FOR FUN · SCORE OFF** badge rides along in the
+  corner and the game-over panel says so too. The items:
+  - **Start at 1,000 … 9,000** — one per run. The world is rebuilt at that
+    distance and the speed ramp fast-forwarded (`warpToScore`), so the stretch
+    you drop into plays exactly like an honest run that got there.
+  - **No Gaps** — holds the opening runway's rule for the whole run: slabs are
+    merged instead of spaced, so there is not one hole in the ice. Spikes,
+    crates and every raider still turn up.
+  - **Double Droppers** — the dropper's spawn weight is doubled *at pick time*
+    (`enemySpawnWeight`), never written back into `ENEMY_TYPES`, so unequipping
+    it leaves honest runs untouched.
+  - **Made of Steel** — 10 hit points of riveted shell over whatever skin is
+    equipped. Every lethal contact costs one plate, cracks the shell, and
+    **destroys what caused it**; a pip row over the square counts what is left.
+    A shield still absorbs first. Falling into a gap is not a hit and still
+    ends the run.
+  - **Forever Gun** — the gun powerup granted permanently (`remaining` is
+    `Infinity`, so it never ticks down and a dropper roll can't downgrade it).
+  - **Fly** — the wings powerup, topped back up every time the square lands, so
+    there is always exactly one extra jump in the air.
+  Mods that hand out a powerup are re-granted every frame by
+  `enforceShopPowerups()`, so nothing else in the file — dropper rolls, wings
+  being spent, a mid-run warp — has to know the shop exists.
+- Enemies, powerups, skins and shop items use registry tables in `game.js` (`ENEMY_TYPES`, `POWERUP_DEFS`, `POWERUP_DROP_IDS`, `SKIN_DEFS`, `SHOP_DEFS`) so new kinds are easy to add.
 - **Skins are cosmetic, full stop.** A skin supplies `behind` / `body` /
   `features` art inside `drawPlayer`'s transform and nothing else — the hitbox
   is `PLAYER_SIZE` for all of them, and the death frame drops the costume so
@@ -161,7 +194,7 @@ art is crisp on retina screens on desktop too.
 ## Files
 
 ```
-index.html   — page shell, entrance screen & instructions markup
+index.html   — page shell, entrance screen, instructions, skins & shop markup
 style.css    — layout, UI & front-end animation
 game.js      — game loop, physics, drawing, front end
 README.md    — this file
